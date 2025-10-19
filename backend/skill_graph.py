@@ -1,5 +1,16 @@
 from __future__ import annotations
 
+"""Skill graph and mining constraints used by the deterministic planner.
+
+Purpose: Provide minimal craft/smelt dependencies and context requirements for
+early goals (e.g., iron_pickaxe), and define world-acquired items and tool
+gating rules for mining.
+
+Engineering notes: Use concrete item ids (e.g., minecraft:oak_log) rather than
+ambiguous placeholders. Keep the graph small and explicit; avoid speculative
+abstractions.
+"""
+
 from dataclasses import dataclass
 from typing import Dict, List, Mapping
 
@@ -15,7 +26,7 @@ class Skill:
 # Minimal skill graph (Plan4MC-style) sufficient for v0 goals
 SKILLS: Dict[str, Skill] = {
     # 2x2 crafting
-    "minecraft:planks": Skill(consume={"minecraft:log": 1}, require={}, obtain={"minecraft:planks": 4}, op="craft"),
+    "minecraft:planks": Skill(consume={"minecraft:oak_log": 1}, require={}, obtain={"minecraft:planks": 4}, op="craft"),
     "minecraft:stick": Skill(consume={"minecraft:planks": 2}, require={}, obtain={"minecraft:stick": 4}, op="craft"),
     "minecraft:crafting_table": Skill(consume={"minecraft:planks": 4}, require={}, obtain={"minecraft:crafting_table": 1}, op="craft"),
 
@@ -59,7 +70,6 @@ SKILLS: Dict[str, Skill] = {
 
 # Items we "acquire" from the world (chat-bridge via Baritone)
 MINEABLE_ITEMS: List[str] = [
-    "minecraft:log",
     "minecraft:oak_log",
     "minecraft:cobblestone",
     "minecraft:iron_ore",
@@ -71,5 +81,3 @@ MINING_TOOL_REQUIREMENTS: Dict[str, List[str]] = {
     "minecraft:cobblestone": ["minecraft:wooden_pickaxe", "minecraft:stone_pickaxe", "minecraft:iron_pickaxe"],
     "minecraft:iron_ore": ["minecraft:stone_pickaxe", "minecraft:iron_pickaxe"],
 }
-
-

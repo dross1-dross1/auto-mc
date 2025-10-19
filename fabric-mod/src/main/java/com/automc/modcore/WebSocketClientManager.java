@@ -1,3 +1,17 @@
+/**
+ * AutoMinecraft WebSocket client manager.
+ *
+ * Purpose: Owns the single client-side WebSocket connection to the backend and provides
+ * a thread-safe JSON send path plus a rate-limited chat-bridge helper.
+ *
+ * How: Creates dedicated single-thread executors for sending and auxiliary tasks, wires
+ * WebSocket callbacks to enqueue inbound messages into the game-thread MessagePump, and
+ * applies safe Baritone defaults after connect. Exposes an accessor for the active
+ * player id and a rate-limited chat send that executes on the MC thread.
+ *
+ * Engineering notes: Keep IO off the MC thread; centralize rate-limiting and settings;
+ * prefer explicit reconnection/backoff in future; avoid hardcoded secrets; structured logs.
+ */
 package com.automc.modcore;
 
 import com.google.gson.Gson;
@@ -8,7 +22,6 @@ import org.java_websocket.client.WebSocketClient;
 import org.java_websocket.handshake.ServerHandshake;
 
 import java.net.URI;
-import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -26,10 +39,20 @@ public final class WebSocketClientManager {
         t.setDaemon(true);
         return t;
     });
+    private final ExecutorService auxExec = Executors.newSingleThreadExecutor(r -> {
+        Thread t = new Thread(r, "AutoMC-WS-Aux");
+        t.setDaemon(true);
+        return t;
+    });
+    private volatile boolean telemetryRunning = false;
 
     private WebSocketClientManager() {}
 
     public static WebSocketClientManager getInstance() { return INSTANCE; }
+
+    public String getPlayerId() {
+        return this.config != null ? this.config.playerId : "";
+    }
 
     public synchronized void start(ModConfig config) {
         this.config = config;
@@ -45,6 +68,10 @@ public final class WebSocketClientManager {
                     handshake.addProperty("player_id", config.playerId);
                     handshake.addProperty("client_version", "mod/0.1.0");
                     enqueueSend(GSON.toJson(handshake));
+                    // Apply conservative Baritone defaults shortly after connect
+                    applyBaritoneDefaultsAsync();
+                    // Start telemetry heartbeat
+                    startTelemetryHeartbeat();
                 }
                 @Override public void onMessage(String message) {
                     // Pump into a queue to be processed on client tick, not IO thread
@@ -54,7 +81,7 @@ public final class WebSocketClientManager {
                     LOGGER.info("WS closed: {} {} remote={} ", code, reason, remote);
                 }
                 @Override public void onError(Exception ex) {
-                    LOGGER.warn("WS error: {}", ex.toString());
+                    LOGGER.warn("WS error", ex);
                 }
             };
             this.client.connect();
@@ -76,6 +103,77 @@ public final class WebSocketClientManager {
                 LOGGER.warn("WS send failed: {}", e.toString());
             }
         });
+    }
+
+    private void applyBaritoneDefaultsAsync() {
+        // Space out a few safe defaults; backend may override later via settings_update
+        auxExec.submit(() -> {
+            try {
+                Thread.sleep(250L);
+                sendBaritoneSetting("allowParkour", "false");
+                sendBaritoneSetting("allowDiagonalAscend", "false");
+                sendBaritoneSetting("assumeWalkOnWater", "false");
+                sendBaritoneSetting("freeLook", "false");
+                sendBaritoneSetting("primaryTimeoutMS", "4000");
+            } catch (InterruptedException ignored) {
+            }
+        });
+    }
+
+    private void sendBaritoneSetting(String key, String value) {
+        JsonObject msg = new JsonObject();
+        msg.addProperty("type", "chat_send");
+        msg.addProperty("request_id", java.util.UUID.randomUUID().toString());
+        msg.addProperty("player_id", config.playerId);
+        msg.addProperty("text", "#set " + key + " " + value);
+        sendJson(msg);
+    }
+
+    private void startTelemetryHeartbeat() {
+        if (telemetryRunning) return;
+        telemetryRunning = true;
+        auxExec.submit(() -> {
+            while (telemetryRunning) {
+                try {
+                    Thread.sleep(Math.max(250, config.telemetryIntervalMs));
+                    sendTelemetryOnce();
+                } catch (InterruptedException ignored) {
+                } catch (Throwable t) {
+                    LOGGER.warn("telemetry heartbeat error", t);
+                }
+            }
+        });
+    }
+
+    private void sendTelemetryOnce() {
+        net.minecraft.client.MinecraftClient mc = net.minecraft.client.MinecraftClient.getInstance();
+        if (mc == null || mc.player == null || mc.world == null) return;
+        JsonObject st = new JsonObject();
+        st.add("pos", array3(mc.player.getX(), mc.player.getY(), mc.player.getZ()));
+        st.addProperty("dim", mc.world.getRegistryKey().getValue().toString());
+        st.addProperty("yaw", mc.player.getYaw());
+        st.addProperty("pitch", mc.player.getPitch());
+        st.addProperty("health", (int) Math.ceil(mc.player.getHealth()));
+        st.addProperty("hunger", mc.player.getHungerManager().getFoodLevel());
+        st.addProperty("saturation", (double) mc.player.getHungerManager().getSaturationLevel());
+        st.addProperty("air", mc.player.getAir());
+        st.addProperty("xp_level", mc.player.experienceLevel);
+        st.addProperty("time", (int) (mc.world.getTimeOfDay() % Integer.MAX_VALUE));
+
+        JsonObject msg = new JsonObject();
+        msg.addProperty("type", "telemetry_update");
+        msg.addProperty("player_id", config.playerId);
+        msg.addProperty("ts", java.time.Instant.now().toString());
+        msg.add("state", st);
+        sendJson(msg);
+    }
+
+    private static com.google.gson.JsonArray array3(double x, double y, double z) {
+        com.google.gson.JsonArray a = new com.google.gson.JsonArray(3);
+        a.add(x);
+        a.add(y);
+        a.add(z);
+        return a;
     }
 
     public boolean trySendChatRateLimited(String text) {

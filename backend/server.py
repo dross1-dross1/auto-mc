@@ -1,5 +1,17 @@
 from __future__ import annotations
 
+"""AutoMinecraft backend server.
+
+Purpose: WebSocket gateway that accepts client connections, parses chat commands
+into intents, plans deterministic steps, and streams actions to the client.
+
+How: One connection per agent; keeps lightweight session state; persists last
+telemetry; optional idle shutdown for dev.
+
+Engineering notes: Validate inputs defensively; keep handlers small; structured
+logging with request and player ids; avoid blocking the event loop.
+"""
+
 import asyncio
 import json
 import logging

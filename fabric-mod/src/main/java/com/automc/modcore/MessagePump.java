@@ -1,3 +1,15 @@
+/**
+ * AutoMinecraft inbound message pump.
+ *
+ * Purpose: Transfer WebSocket IO-thread messages onto the Minecraft client
+ * thread by queuing and draining a bounded batch each tick.
+ *
+ * How: Registers an END_CLIENT_TICK callback, polls a concurrent queue up to
+ * a fixed limit, and routes each message through the MessageRouter.
+ *
+ * Engineering notes: Apply backpressure via per-tick and queue-size caps to
+ * avoid stalls and runaway memory.
+ */
 package com.automc.modcore;
 
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
@@ -44,5 +56,3 @@ final class MessagePump {
         QUEUE.offer(raw);
     }
 }
-
-

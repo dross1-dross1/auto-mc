@@ -1,4 +1,8 @@
-"""AutoMinecraft backend package."""
+"""AutoMinecraft backend package.
+
+Purpose: Host the WebSocket server, deterministic planner, dispatcher, and
+shared state service for one or more client agents.
+"""
 
 __all__ = [
     "__version__",

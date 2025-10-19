@@ -1,16 +1,20 @@
 from __future__ import annotations
 
+"""Parse chat commands into deterministic intents.
+
+Purpose: Translate a small set of '!'-prefixed commands into explicit intent
+dicts for the planner/dispatcher, avoiding LLM dependence in v0.
+
+Supported patterns:
+- !echo <text>
+- !craft <count> <item words>
+"""
+
 import re
 from typing import Dict, Optional
 
 
 def parse_command_text(text: str) -> Optional[Dict[str, object]]:
-    """Parse chat text to a deterministic intent dict.
-
-    Supported patterns:
-    - !echo <text>
-    - !craft <count> <item words>
-    """
     text = text.strip()
     if not text.startswith("!"):
         return None
@@ -22,7 +26,7 @@ def parse_command_text(text: str) -> Optional[Dict[str, object]]:
     if m:
         count = int(m.group(1))
         item_words = m.group(2).strip().lower().replace(" ", "_")
-        # naive normalization of common items
+        # Naive normalization of common items
         item_map = {
             "iron_pickaxe": "minecraft:iron_pickaxe",
             "iron_pick": "minecraft:iron_pickaxe",

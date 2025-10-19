@@ -107,6 +107,9 @@ Modules (Python backend)
   - Plan to actions; per-action timeout; bounded retries with backoff; pause/cancel; resume on reconnect.
   - Multi-agent scheduler (round-robin with priorities later); claims; handoffs to chests; `task_assign`.
   - Chat bridge mapping for `acquire` → Baritone commands (e.g., `#mine coal_ore`, `#mine oak_log`).
+  - Context placeholders like `crafting_table_nearby` and `furnace_nearby` are NOT mineable and must not be sent to Baritone.
+    - v0 behavior: backend converts these to `mode=mod_native, op=ensure, ensure=<placeholder>`.
+    - Client replies with `progress_update` (skipped|fail with note) until ensure-context (craft/place/use) is implemented.
 - Settings Service
   - Broadcast `settings_update` to agents (e.g., Baritone/Wurst settings, telemetry interval, rate limits).
 - Persistence
@@ -344,8 +347,14 @@ Action to mod (chat bridge):
 ```
 Action to mod (mod-native):
 ```json
-{ "type": "action_request", "action_id": "uuid", "mode": "mod_native", "op": "craft_item", "recipe": "minecraft:iron_pickaxe", "count": 1 }
+{ "type": "action_request", "action_id": "uuid", "mode": "mod_native", "op": "craft", "recipe": "minecraft:iron_pickaxe", "count": 1 }
 ```
+Semantics in v0:
+- For `mode=chat_bridge`, the client sends the `text` to chat and immediately replies with `progress_update {status: ok|skipped}` based on local rate limit.
+- For `mode=mod_native`:
+  - `craft` supports 2x2-only recipes initially (`minecraft:planks`, `minecraft:stick`, `minecraft:crafting_table`).
+  - If unimplemented or inputs missing, the client replies with `progress_update {status: skipped|fail, note}`.
+  - Future: add ensure-context (`crafting_table_nearby`, `furnace_nearby`) and full 3x3 crafting/smelting with placement/interact.
 
 Shared storage: container inventory snapshot
 ```json
@@ -391,6 +400,13 @@ Start with:
 - Output: a linear list of clear steps your mod understands.
 
 Small, correct, and boring beats clever here.
+
+Known gaps and next steps (v0):
+- Recipe ingestion: ingest vanilla JSON recipes/tags to avoid hardcoding in `backend/skill_graph.py`; generate skill nodes for craft/smelt and use tags (e.g., logs) for interchangeable inputs.
+- 2x2 vs 3x3 separation: client currently only acknowledges 2x2 `craft` ops; full 3x3 crafting and smelting via ensure-context → place → open → interact are planned.
+- Acquire coalescing: consecutive duplicate acquires are coalesced to reduce repeated `#mine` sends; future: inventory-aware planning to skip already-satisfied items.
+- Context ensure: `crafting_table_nearby`/`furnace_nearby` mapped to `mod_native ensure`; client to implement craft/place/use and proximity checks.
+- Telemetry/state: client now sends heartbeats; backend pretty-prints `data/state.json`.
 
 ### 5) Natural language (add later, keep it tame)
 
@@ -473,6 +489,7 @@ Optional: Backend UI
   - Use: navigation, mining, some building; settings via `#set`.
   - Limits: multi-dimension travel handled at higher layer; noisy chat output.
   - See usage (`usage.md`) and in-game `#help`.
+  - v0 defaults (sent by client after connect): `allowParkour=false`, `allowDiagonalAscend=false`, `assumeWalkOnWater=false`, `freeLook=false`, `primaryTimeoutMS=4000`.
 
 - Wurst7: Fabric client with automation modules (chat `.` commands). Repo: https://github.com/Wurst-Imperium/Wurst7
   - Use: optional helper modules like AutoEat/AutoArmor/tunneling.

@@ -1,3 +1,10 @@
+/**
+ * AutoMinecraft mod configuration.
+ *
+ * Purpose: Centralize client config (backend URL, player id, telemetry interval,
+ * chat bridge settings) and provide sane defaults. Writes a default file if none
+ * exists to aid first-run.
+ */
 package com.automc.modcore;
 
 import com.google.gson.Gson;

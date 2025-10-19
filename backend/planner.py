@@ -1,5 +1,12 @@
 from __future__ import annotations
 
+"""Deterministic planner: expand craft/smelt goals into linear steps.
+
+Purpose: Given an item id and count, expand via a tiny skill graph into a list
+of steps the mod understands (acquire/craft/smelt), including minimal tool
+gating for mining.
+"""
+
 from typing import Dict, List
 
 from .skill_graph import SKILLS, MINEABLE_ITEMS, MINING_TOOL_REQUIREMENTS
@@ -37,10 +44,19 @@ def plan_craft(item_id: str, count: int) -> List[Dict[str, object]]:
     steps: List[Dict[str, object]] = []
     _expand_skill(item_id, count, steps)
 
+    # Simple coalescing of consecutive identical acquires to avoid duplicate chat-bridge commands
+    coalesced: List[Dict[str, object]] = []
+    for s in steps:
+        if coalesced and s.get("op") == "acquire" and coalesced[-1].get("op") == "acquire" and coalesced[-1].get("item") == s.get("item"):
+            prev = coalesced[-1]
+            prev["count"] = int(prev.get("count", 1)) + int(s.get("count", 1))
+            continue
+        coalesced.append(s)
+
     # Insert minimal tool gating for mineables: ensure a capable pickaxe appears before mining iron ore/cobblestone
     gated: List[Dict[str, object]] = []
     have_tools: Dict[str, int] = {}
-    for s in steps:
+    for s in coalesced:
         if s.get("op") == "craft" and isinstance(s.get("recipe"), str):
             tool = str(s["recipe"])  # type: ignore[index]
             have_tools[tool] = have_tools.get(tool, 0) + int(s.get("count", 1))

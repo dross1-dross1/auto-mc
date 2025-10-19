@@ -1,5 +1,11 @@
 from __future__ import annotations
 
+"""Typed schema definitions for backend–client messages.
+
+Purpose: Provide precise TypedDicts for message contracts to aid static checks
+and keep the protocol explicit.
+"""
+
 from typing import Any, Dict, List, Literal, Optional, Tuple, TypedDict
 
 

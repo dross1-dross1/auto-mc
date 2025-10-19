@@ -1,5 +1,11 @@
 from __future__ import annotations
 
+"""Backend configuration and logging setup.
+
+Purpose: Load environment-driven settings (optionally via .env) and configure
+root logging with a concise format.
+"""
+
 import logging
 import os
 from dataclasses import dataclass

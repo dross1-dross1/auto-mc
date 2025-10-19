@@ -1,5 +1,11 @@
 from __future__ import annotations
 
+"""Persist and serve lightweight per-player state (telemetry snapshots).
+
+Purpose: Keep the latest telemetry per agent in memory and a small JSON file,
+and provide selection utilities for state responses.
+"""
+
 import asyncio
 import json
 import logging
@@ -42,9 +48,7 @@ class StateService:
         async with self._save_lock:
             try:
                 data = {"telemetry": self._last_telemetry}
-                # offload writing to avoid blocking the event loop
-                await asyncio.to_thread(self._path.write_text, json.dumps(data, separators=(",", ":")), "utf-8")
+                # offload writing to avoid blocking the event loop; pretty-print for readability
+                await asyncio.to_thread(self._path.write_text, json.dumps(data, indent=2), "utf-8")
             except Exception as exc:
                 logger.warning("failed to save state: %s", exc)
-
-
