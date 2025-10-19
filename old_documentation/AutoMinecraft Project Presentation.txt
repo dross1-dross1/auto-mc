@@ -1,0 +1,209 @@
+AutoMinecraft
+Deautaun Ross, Jacob Dominguez
+
+Table of Contents
+i. Introduction
+What is Minecraft?
+ii. Project Overview
+Purpose & Goals
+Importance
+iii. System Architecture
+
+
+iv. Test Dimensions
+State of User Testing
+v. Feature Demo
+Pathfinding, Building, Mining, & More 
+Chat Command Prototype
+Block Tracker Data Persistence
+Retrieving Player Inventory
+Task Decomposition
+
+
+What is…
+
+What is Minecraft?
+Minecraft is a 3D, open world, survival sandbox video game developed by Mojang Studios
+Offers player freedom & creativity
+Over 300 million copies sold
+
+
+Project Purpose & Goals
+Create an autonomous program for Minecraft that acts in place of the player based on their text commands
+Understand task hierarchy
+Execute simple commands
+Focus on Survival Mode
+
+Project Overview
+Importance - What Problem Does This Solve?
+Minecraft’s primary age group is 15-21
+Progressing the game involves tedious work
+AutoMinecraft can handle this work so the player can do more fun tasks
+
+System Architecture
+Diagram
+
+
+Testing Dimensions
+State of User Testing
+Not in a state to push out to test users
+Frontend-accessible features to test aren’t easy to use
+We have independently tested our features
+ System Function Test Document
+
+System Test Document
+Test Case Name
+Test Objective
+Test Case Description
+User Steps
+Expected Results
+Expected Results Screenshots
+Pass/Fail
+Actual Results
+Remarks
+Baritone Pathing Test
+Demonstrate player movement and building via API
+This is to test that the pathfinding and building functions of the Baritone API work as intended
+1. Enter "#click"
+2. Select destination with mouse pointer (LMB or RMB)
+Player character automatically travels to selected destination, building or breaking blocks as necessary
+Pass
+Player character travels to the chosen destination, and can be set to build and/ or destroy blocks to travel faster
+Other pathing methods exist, such as "#goto __" or "#find __"
+Baritone Entity Tracking Test
+Demonstrate navigating to closest chosen entity and following it via API
+This is to test that the pathfinding and entity tracking functions of the Baritone API work as intended
+1. Enter "#follow entity " followed by your chosen entity type
+Player character automatically travels to selected destination, building or breaking blocks as necessary
+Pass
+Player character finds the closest entity of the specified type and travels to it, following it wherever it moves
+Player can follow mobs, but will not fight them
+Build from Schematic Command Test
+Demonstrate the capability to autonomously build a predefined structure
+This is to test the functionality of building discrete structures based on a saved schematic, provided the player has adequate materials
+1. Type specialized Baritone chat command, referencing the schematic name you want built
+The structure in question is constructed layer by layer, in a designated space, and is completed if the player's inventory has enough materials to do so
+Pass
+Build speed can be configured, but for efficiency and demonstration purposes is set to a high speed
+Core function the user can leverage to build farm, generator, or repetitive architectural structures
+
+System Test Document
+Test Case Name
+Test Objective
+Test Case Description
+User Steps
+Expected Results
+Expected Results Screenshots
+Pass/Fail
+Actual Results
+Remarks
+Dirt Block Tracker Server Event Test
+Demonstrate tracking of server block breaking events
+This is to test that when a dirt block is destroyed by a player, it increments the number of total dirt blocks destroyed in that world/ per player
+1. Load or create world
+2. Destroy a dirt or grass block
+World and player-specific dirt block counts increase and are shown in chat
+Pass
+Counts increment separately, player-specific count can differ from global count in singleplayer (in case a non-player entity destroys blocks)
+Proof of concept backend feature, actual utilization is not seen by user
+Dirt Block Tracker Persistent State Test
+Demonstrate persistent state of game information across game instances
+This is to test that the dirt block counts previously recorded persist after closing and reopening the game
+1. Destroy dirt or grass block
+2. Close and reopen the game
+3. Destroy more dirt or grass blocks
+World dirt block couts persist since last game session and increment when more are destroyed
+Pass
+World dirt block count persists between game sessions. Player-specific count resets if the mod is reloaded, but not if installed and run from the game client
+This result occurs because the mod initializes player-specific dirt block counts to 0, but loads world count from disk
+Return Inventory Test
+Demonstrate retrieving game data from backend
+This is to test that data about the player's inventory items, including type and count, can be sent to the backend for later use
+1. Set up desired inventory state in-game
+2. Press the return inventory hotkey (P)
+Backend receives inventory and prints the contents to the console, accurately capturing item type and count
+Pass
+Console output matches in-game inventory, interestingly an empty inventory slot is an object called "air" in Minecraft
+Used to track material progress towards task goals
+
+System Test Document (3)
+Test Case Name
+Test Objective
+Test Case Description
+User Steps
+Expected Results
+Expected Results Screenshots
+Pass/Fail
+Actual Results
+Remarks
+Chat Command Mod User Input Test
+Demonstrate a mod that sends player messages to system backend
+This is to test that the player can send text input to the backend to be interpreted and acted upon, if applicable
+1. Type a message into the in-game chat box, putting a "!" at the start
+2. Send the message
+Player's message is not displayed in the in-game chat box, instead a message parroting their text is sent to them stating the backend received the message
+Pass
+Player's message is not sent to global chat box, the message received back by the player is private, and is not displayed to other players in the world
+Proof of concept for sending command prompts to backend for task execution
+Heirarchical Task Decomposition Function Test
+Demonstrate backend function that provides all preliminary steps to a specified goal
+This is to test that the backend understands the in-game hierarchy of tasks, being able to produce a list of tasks subordinate to the input task
+1. Call the function with the desired parameters (desired item, block, etc. and amount desired)
+Backend provides a correct, ordered list of tasks starting from highest-level hierarchy to lowest-level, and prints it to the console
+Pass
+Inputing "iron_pickaxe, 1" to the function resulted in the correct task list, requiring all materials, crafting stations, and quantities of items required to obtain 1 iron pickaxe
+Core function for task execution, individual small steps as broken down by the function are required to direct the bot to begin tackling the desired task
+
+Features &
+Demo
+
+Main Features
+Automatic Pathfinding & Mining
+Automatic Building
+
+
+Custom Chat Commands
+
+
+
+
+
+Prototype
+
+Backend Features
+Return Inventory
+Block & State Tracker
+Task Decomposition
+
+
+
+
+
+
+
+
+Visualization
+
+Reflection
+Deautaun:
+Reading journal articles and implementing methods described in journal articles
+Client-side modification of multiplayer games
+Client-Server interaction and synchronization
+Jacob:
+Look at a game “from the inside”, always learning more
+User-facing & UI manipulating features were more challenging
+
+Further Development
+Feature expansion:
+Robust input handling: adapt to “natural” language
+Automatic task delegation up the hierarchy 
+Smallest task first
+AutoMinecraft bot network
+Automatic task delegation from one command
+New Features:
+AI integration: LLM to interpret user input & make backend calls
+Behavior and High-Level Control Modules
+
+Further Development
+
+Questions?

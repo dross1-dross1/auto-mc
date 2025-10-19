@@ -1,0 +1,47 @@
+Project Description
+Scope
+High Level Deliverables
+9/16/2023: Git repository containing project files (API, Java code, etc.)
+9/22/2023: Host an LLM inference API locally
+10/6/2023: Set up an environment for the agent in-game, via a mod loader like Fabric
+11/3/2023: Interact with the in-game environment via code 
+11/24/2023: Control an agent solely using natural language
+
+Project Name
+Primary focus on training an autonomous agent for Minecraft Java Edition. 
+Excludes creating a generalized AI to complete any task in any game. 
+Not about surpassing the best human agents, but rather showing the possibility of giving human-like commands to an AI and having it be carried out successfully.
+Project Name:	LLMdoesMinecraft	
+Project Team:	Deautaun Ross, Jacob Dominguez
+Project Advisor:	Jonn McCurry
+Project Start:	9/1/2023			End:	3/8/2024
+The main goal of this project is to create a Minecraft Java Edition bot that can perform actions based on instructions given in a natural language. What we intend to achieve is combining the adaptivity of a reinforcement learning model with the rationality and long-term planning of AutoGPT.
+Technical Requirements 
+Python 3.11.5
+Java 17.0.8
+AutoGPT 0.4.7
+Minecraft Java Edition 1.20.1
+Fabric Mod Loader 0.14.22
+1
+
+Project Epics
+User Stories
+Project Name
+AI project includes natural language prompts as user stories where applicable
+User is able to verify the AI can read game data/ information
+User can enter natural language prompts to give tasks to the AI
+“Gather wood from nearby” or “Craft 8 torches”
+“Gather all necessary materials to build a nether portal and travel to the nether” or “Build a house out of gold blocks”
+User is be able to see ChatGPT's summary plan for a complex command, they shouldn't have to spell out the microsteps
+AI is able to ask clarifying questions in the event that the user provides ambiguous prompts (eg. "I don't want to die")
+Project Name:	LLMdoesMinecraft
+Project Team:	Deautaun Ross, Jacob Dominguez
+Project Advisor:	Jonn McCurry
+Project Start:	9/1/2023			End:	3/8/2024
+
+Have the AI interact with the game via LLM inference API
+Have an interface for the user to control the agent directly in-game (via text)
+Have the AI perform a simple task
+Have the AI accomplish a complex task through many simple steps
+Have the AI maintain persistent world-awareness (eg. knows the exact contents of a chest previously opened)
+2

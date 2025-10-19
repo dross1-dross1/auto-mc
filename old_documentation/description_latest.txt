@@ -1,0 +1,1 @@
+Minecraft Java Edition Fabric mod (and Python backend) designed for high-level task decomposition and planning that uses both Baritone and Wurst Fabric mods as ways to interact with the environment. The python backend is used to control multiple agents (players). 
