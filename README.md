@@ -34,6 +34,9 @@ MAX_CHAT_SENDS_PER_SEC=5
 DEFAULT_RETRY_ATTEMPTS=3
 DEFAULT_RETRY_BACKOFF_MS=500
 DEFAULT_ACTION_TIMEOUT_MS=30000
+DEFAULT_ACTION_SPACING_MS=200
+# Optional idle auto-shutdown (0 disables)
+IDLE_SHUTDOWN_SECONDS=0
 ```
 
 Mod config `autominecraft.json` (in the game’s config folder):
@@ -43,6 +46,7 @@ Mod config `autominecraft.json` (in the game’s config folder):
   "player_id": "player-1",
   "telemetry_interval_ms": 1000,
   "chat_bridge_enabled": true,
+  "chat_bridge_rate_limit_per_sec": 2,
   "inventory_snapshot_debounce_ms": 250,
   "inventory_snapshot_max_payload_kb": 64,
   "auth_token": null,
@@ -92,7 +96,12 @@ python -m backend
 - Type `!echo hello` and see a reply. Trigger a simple navigation via `#goto` from the backend.
 
 4) Try a real goal
-- Type `!craft 1 iron pickaxe` and watch the planner emit steps and the mod execute them.
+- Type `!craft 1 iron pickaxe`. Planner bootstraps tools (wood → stone → iron). Chat-bridge actions are spaced and rate-limited; you should see Baritone `#mine` commands. Craft/smelt are placeholders until mod-native is added.
+
+Tips
+- Baritone in-game help: `#help`; Repo: https://github.com/cabaletta/baritone (usage.md).
+- Wurst in-game help: `.help`; Repo: https://github.com/Wurst-Imperium/Wurst7.
+- Planner inspiration: Plan4MC https://github.com/PKU-RL/Plan4MC.
 
 ## Security and observability
 - Sanitize/escape outbound chat; never echo arbitrary backend input to public chat.

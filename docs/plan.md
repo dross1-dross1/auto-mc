@@ -21,6 +21,7 @@ This README is the working plan: what to build, the outcomes to hit, and how to 
 - Chat-bridge control for Baritone/Wurst; mod-native actions for gaps; settings can be broadcast/overridden centrally.
 - Dimension-aware tasks (portal registry, optional portal creation), coop building, and basic combat toggles enabled by config.
 - Deterministic planner first; LLM parsing deferred. State, portal registry, and shared storage catalog persist and resume.
+- Planner bootstrap: ensure tool prerequisites (e.g., craft `stone_pickaxe` before `iron_pickaxe`).
 
 ---
 
@@ -105,6 +106,7 @@ Modules (Python backend)
 - Dispatcher
   - Plan to actions; per-action timeout; bounded retries with backoff; pause/cancel; resume on reconnect.
   - Multi-agent scheduler (round-robin with priorities later); claims; handoffs to chests; `task_assign`.
+  - Chat bridge mapping for `acquire` → Baritone commands (e.g., `#mine coal_ore`, `#mine oak_log`).
 - Settings Service
   - Broadcast `settings_update` to agents (e.g., Baritone/Wurst settings, telemetry interval, rate limits).
 - Persistence
@@ -170,6 +172,7 @@ Build this:
 - Networking
   - Keep a single connection to the backend (WebSocket is easiest). Reconnect if it drops.
   - Message types: `command`, `action_request`, `progress_update`, `telemetry_update`, `state_request`, `state_response`, `inventory_snapshot`, `inventory_diff`, `chat_send`, `chat_event`, `cancel`.
+  - Rate/spacing: backend spaces action sends (`DEFAULT_ACTION_SPACING_MS`), client rate-limits chat bridge sends.
 - Action executor
   - Chat bridge actions (send to chat):
     - navigate_to (pos) → `#goto x y z`
@@ -421,12 +424,15 @@ Backend (`.env`):
  - `MAX_CHAT_SENDS_PER_SEC` (e.g., 5)
  - `DEFAULT_RETRY_ATTEMPTS` (e.g., 3), `DEFAULT_RETRY_BACKOFF_MS` (e.g., 500)
  - `DEFAULT_ACTION_TIMEOUT_MS` (per-op override supported)
+ - `DEFAULT_ACTION_SPACING_MS` (ms between action sends)
+ - `IDLE_SHUTDOWN_SECONDS` (idle auto-shutdown; 0 disables)
 
 Mod (`autominecraft.json` in the game’s config folder):
 - `backend_url` (e.g., ws://127.0.0.1:8765)
 - `player_id` (free-form string)
  - `telemetry_interval_ms` (e.g., 1000)
  - `chat_bridge_enabled` (true|false)
+ - `chat_bridge_rate_limit_per_sec` (e.g., 2)
  - `inventory_snapshot_debounce_ms` (e.g., 250)
  - `inventory_snapshot_max_payload_kb` (e.g., 64)
  - `auth_token` (if backend requires it)
@@ -466,10 +472,12 @@ Optional: Backend UI
 - Baritone: automated pathfinding and automation (chat `#` commands). Repo: https://github.com/cabaletta/baritone
   - Use: navigation, mining, some building; settings via `#set`.
   - Limits: multi-dimension travel handled at higher layer; noisy chat output.
+  - See usage (`usage.md`) and in-game `#help`.
 
 - Wurst7: Fabric client with automation modules (chat `.` commands). Repo: https://github.com/Wurst-Imperium/Wurst7
   - Use: optional helper modules like AutoEat/AutoArmor/tunneling.
   - Limits: treat as optional; gate risky features behind config.
+  - See in-game `.help` for commands and modules.
 
 - Litematica (optional, later): schematic planning/visualization; potential for integration or printer support (if feasible via text/API).
 
@@ -478,6 +486,7 @@ Optional: Backend UI
 - SeedcrackerX (optional, later): recover world seed to enable seed-based structure/biome queries. Repo: https://github.com/19MisterX98/SeedcrackerX
 
 - Plan4MC (research): RL+planning for long-horizon tasks; inspiration for planner design. Site: https://sites.google.com/view/plan4mc Repo: https://github.com/PKU-RL/Plan4MC
+  - Concepts to adapt: hierarchical goals, state estimation, long-horizon decomposition.
 
 ---
 

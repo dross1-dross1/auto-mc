@@ -2,7 +2,6 @@ package com.automc.modcore;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
-import net.minecraft.client.MinecraftClient;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -19,8 +18,8 @@ public final class MessageRouter {
             String type = obj.get("type").getAsString();
             if ("chat_send".equals(type)) {
                 String text = obj.get("text").getAsString();
-                sendChat(text);
-                LOGGER.info("chat_send -> {}", text);
+                boolean sent = WebSocketClientManager.getInstance().trySendChatRateLimited(text);
+                LOGGER.info("chat_send -> {} (sent={})", text, sent);
                 return;
             }
             if ("action_request".equals(type)) {
@@ -28,12 +27,7 @@ public final class MessageRouter {
                 if ("chat_bridge".equals(mode)) {
                     String chatText = obj.has("chat_text") ? obj.get("chat_text").getAsString() : "";
                     if (!chatText.isEmpty()) {
-                        // Do not schedule chat sends on WebSocket read thread; push to client thread
-                        boolean[] sentBox = new boolean[]{false};
-                        net.minecraft.client.MinecraftClient.getInstance().execute(() -> {
-                            sentBox[0] = WebSocketClientManager.getInstance().trySendChatRateLimited(chatText);
-                        });
-                        boolean sent = sentBox[0];
+                        boolean sent = WebSocketClientManager.getInstance().trySendChatRateLimited(chatText);
                         LOGGER.info("chat_bridge exec -> {} (sent={})", chatText, sent);
                         // send progress_update ok
                         com.google.gson.JsonObject progress = new com.google.gson.JsonObject();
@@ -69,9 +63,5 @@ public final class MessageRouter {
         }
     }
 
-    private static void sendChat(String text) {
-        MinecraftClient mc = MinecraftClient.getInstance();
-        if (mc.player == null) return;
-        mc.execute(() -> mc.player.networkHandler.sendChatMessage(text));
-    }
+    // All chat sends are centralized via WebSocketClientManager.trySendChatRateLimited()
 }
