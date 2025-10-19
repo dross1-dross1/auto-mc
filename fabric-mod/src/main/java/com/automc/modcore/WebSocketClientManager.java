@@ -51,7 +51,22 @@ public final class WebSocketClientManager {
     public static WebSocketClientManager getInstance() { return INSTANCE; }
 
     public String getPlayerId() {
-        return this.config != null ? this.config.playerId : "";
+        try {
+            net.minecraft.client.MinecraftClient mc = net.minecraft.client.MinecraftClient.getInstance();
+            if (mc != null && mc.player != null) {
+                return mc.player.getUuidAsString();
+            }
+        } catch (Throwable ignored) {}
+        // Fallback to a stable random UUID for the process lifetime if not in-game yet
+        return java.util.UUID.nameUUIDFromBytes(("autmc-" + System.getProperty("user.name", "unknown")).getBytes(java.nio.charset.StandardCharsets.UTF_8)).toString();
+    }
+
+    public String getConfigOrDefaultCommandPrefix(String def) {
+        return (this.config != null && this.config.commandPrefix != null && !this.config.commandPrefix.isEmpty()) ? this.config.commandPrefix : def;
+    }
+
+    public boolean getEchoPublicDefault() {
+        return this.config != null && this.config.echoPublicDefault;
     }
 
     public synchronized void start(ModConfig config) {
@@ -65,8 +80,15 @@ public final class WebSocketClientManager {
                     JsonObject handshake = new JsonObject();
                     handshake.addProperty("type", "handshake");
                     handshake.addProperty("seq", 1);
-                    handshake.addProperty("player_id", config.playerId);
+                    handshake.addProperty("player_id", getPlayerId());
                     handshake.addProperty("client_version", "mod/0.1.0");
+                    if (config.authToken != null && !config.authToken.isEmpty()) {
+                        handshake.addProperty("auth_token", config.authToken);
+                    }
+                    JsonObject caps = new JsonObject();
+                    caps.addProperty("chat_bridge", true);
+                    caps.addProperty("mod_native_ensure", true);
+                    handshake.add("capabilities", caps);
                     enqueueSend(GSON.toJson(handshake));
                     // Apply conservative Baritone defaults shortly after connect
                     applyBaritoneDefaultsAsync();
@@ -124,7 +146,7 @@ public final class WebSocketClientManager {
         JsonObject msg = new JsonObject();
         msg.addProperty("type", "chat_send");
         msg.addProperty("request_id", java.util.UUID.randomUUID().toString());
-        msg.addProperty("player_id", config.playerId);
+        msg.addProperty("player_id", getPlayerId());
         msg.addProperty("text", "#set " + key + " " + value);
         sendJson(msg);
     }
@@ -149,6 +171,9 @@ public final class WebSocketClientManager {
         net.minecraft.client.MinecraftClient mc = net.minecraft.client.MinecraftClient.getInstance();
         if (mc == null || mc.player == null || mc.world == null) return;
         JsonObject st = new JsonObject();
+        // Identity hints for backend to adopt UUID and username when config uses player_id=auto
+        st.addProperty("uuid", mc.player.getUuidAsString());
+        st.addProperty("username", mc.player.getName().getString());
         st.add("pos", array3(mc.player.getX(), mc.player.getY(), mc.player.getZ()));
         st.addProperty("dim", mc.world.getRegistryKey().getValue().toString());
         st.addProperty("yaw", mc.player.getYaw());
@@ -175,7 +200,7 @@ public final class WebSocketClientManager {
 
         JsonObject msg = new JsonObject();
         msg.addProperty("type", "telemetry_update");
-        msg.addProperty("player_id", config.playerId);
+        msg.addProperty("player_id", getPlayerId());
         msg.addProperty("ts", java.time.Instant.now().toString());
         msg.add("state", st);
         sendJson(msg);

@@ -57,24 +57,34 @@ class Dispatcher:
         op = step.get("op")
         if op == "acquire":
             item = str(step.get("item", "")).lower()
-            # Context placeholders: prefer Baritone navigation to the block, with auto open on arrival
+            # Context placeholders -> mod-native ensure for precise interaction
             if item == "crafting_table_nearby":
                 return {
                     "type": "action_request",
                     "action_id": action_id,
-                    "mode": "chat_bridge",
-                    "op": op,
-                    "chat_text": "#goto crafting_table",
+                    "mode": "mod_native",
+                    "op": "ensure",
+                    "ensure": "crafting_table_nearby",
                     **{k: v for k, v in step.items() if k not in {"op"}},
                 }
             if item == "furnace_nearby":
                 return {
                     "type": "action_request",
                     "action_id": action_id,
-                    "mode": "chat_bridge",
-                    "op": op,
-                    "chat_text": "#goto furnace",
+                    "mode": "mod_native",
+                    "op": "ensure",
+                    "ensure": "furnace_nearby",
                     **{k: v for k, v in step.items() if k not in {"op"}},
+                }
+            # For mineable targets, only emit one mining command at a time.
+            # The planner may request multiple different acquires; spacing in run_linear reduces overlap.
+            # Skip world acquire if inventory already satisfies need
+            if self._should_skip_step_due_to_inventory(step):
+                return {
+                    "type": "action_request",
+                    "action_id": action_id,
+                    "mode": "chat_bridge",
+                    "chat_text": "#stop",
                 }
             chat_text = self._acquire_to_chat(step)
             return {
@@ -153,7 +163,19 @@ class Dispatcher:
         need = int(step.get("count", 1))
         if op == "acquire":
             target = str(step.get("item", ""))
-            return bool(target) and counts.get(target, 0) >= need
+            # Already have the target itself
+            if bool(target) and counts.get(target, 0) >= need:
+                return True
+            # Treat logs generically for planks/sticks inputs to avoid over-mining
+            if target in {"minecraft:planks", "minecraft:stick"}:
+                log_count = sum(v for k, v in counts.items() if k.startswith("minecraft:") and (k.endswith("_log") or k.endswith("_logs")))
+                if log_count > 0:
+                    return True
+            # If the target is a specific log type, accept any log variants
+            if target.startswith("minecraft:") and target.endswith("_log"):
+                log_count = sum(v for k, v in counts.items() if k.startswith("minecraft:") and k.endswith("_log"))
+                return log_count >= need
+            return False
         if op in {"craft", "smelt"}:
             target = str(step.get("recipe", ""))
             return bool(target) and counts.get(target, 0) >= need

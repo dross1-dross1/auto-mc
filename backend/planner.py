@@ -44,7 +44,15 @@ def plan_craft(item_id: str, count: int) -> List[Dict[str, object]]:
     - Does not deduplicate or check inventory yet (future step)
     """
     steps: List[Dict[str, object]] = []
-    _expand_skill(item_id, count, steps)
+    # Adjust for recipe yields if known: request minimum crafts to satisfy >= count
+    # Find yield via SKILLS.obtain mapping if present
+    from .skill_graph import SKILLS  # local import to avoid cycles at module import
+    if item_id in SKILLS and SKILLS[item_id].obtain:
+        obtain = SKILLS[item_id].obtain.get(item_id, 1)
+        crafts_needed = max(1, (count + obtain - 1) // obtain)
+        _expand_skill(item_id, crafts_needed, steps)
+    else:
+        _expand_skill(item_id, count, steps)
 
     # Simple coalescing of consecutive identical acquires to avoid duplicate chat-bridge commands
     coalesced: List[Dict[str, object]] = []

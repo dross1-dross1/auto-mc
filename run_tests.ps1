@@ -6,8 +6,13 @@ Set-Location -LiteralPath $PSScriptRoot
 $fabricModDir = Join-Path $PSScriptRoot 'fabric-mod'
 $gradlew = Join-Path $fabricModDir 'gradlew.bat'
 if (Test-Path -LiteralPath $gradlew) {
-    & $gradlew --no-daemon test
-    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    Push-Location $fabricModDir
+    try {
+        & $gradlew --no-daemon test
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    } finally {
+        Pop-Location
+    }
 } else {
     Write-Warning 'gradlew.bat not found; skipping Java tests. See README for wrapper recovery.'
 }

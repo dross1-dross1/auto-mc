@@ -20,6 +20,12 @@ def parse_command_text(text: str) -> Optional[Dict[str, object]]:
     if not text.startswith("!"):
         return None
 
+    if text == "!help" or text.startswith("!help "):
+        return {"type": "help"}
+
+    if text == "!who" or text.startswith("!who "):
+        return {"type": "who"}
+
     if text.startswith("!echo "):
         return {"type": "echo", "text": text[len("!echo ") :].strip()}
 
@@ -33,7 +39,7 @@ def parse_command_text(text: str) -> Optional[Dict[str, object]]:
             "iron_pick": "minecraft:iron_pickaxe",
             "stick": "minecraft:stick",
             "sticks": "minecraft:stick",
-            "planks": "minecraft:oak_planks",  # generic
+            "planks": "minecraft:planks",
             "crafting_table": "minecraft:crafting_table",
             "furnace": "minecraft:furnace",
             "torch": "minecraft:torch",
@@ -41,5 +47,25 @@ def parse_command_text(text: str) -> Optional[Dict[str, object]]:
         }
         item_id = item_map.get(item_words, item_words if ":" in item_words else f"minecraft:{item_words}")
         return {"type": "craft_item", "item": item_id, "count": count}
+
+    # !echomulti name1,name2 <message|#cmd|.cmd>
+    m2 = re.match(r"^!echomulti\s+([^\s]+)\s+(.+)$", text)
+    if m2:
+        targets_csv = m2.group(1).strip()
+        payload = m2.group(2).strip()
+        # Interpret '!echo X' as plain text X
+        if payload.startswith("!echo "):
+            payload = payload[len("!echo ") :].strip()
+        # Pass through commands like '#...' or '. ...'
+        targets = [t.strip() for t in targets_csv.split(",") if t.strip()]
+        return {"type": "multicast", "targets": targets, "text": payload}
+
+    # !echoall <message|#cmd|.cmd>
+    m3 = re.match(r"^!echoall\s+(.+)$", text)
+    if m3:
+        payload = m3.group(1).strip()
+        if payload.startswith("!echo "):
+            payload = payload[len("!echo ") :].strip()
+        return {"type": "broadcast", "text": payload}
 
     return None

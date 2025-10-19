@@ -9,7 +9,12 @@ if (!(Test-Path -LiteralPath $gradlew)) {
     exit 1
 }
 
-& $gradlew --no-daemon clean build
-exit $LASTEXITCODE
+Push-Location $fabricModDir
+try {
+    & $gradlew --no-daemon clean build
+    exit $LASTEXITCODE
+} finally {
+    Pop-Location
+}
 
 

@@ -31,10 +31,22 @@ public final class MessageRouter {
             String type = obj.get("type").getAsString();
             if ("chat_send".equals(type)) {
                 String text = obj.get("text").getAsString();
+                boolean echoPublic = WebSocketClientManager.getInstance().getEchoPublicDefault();
                 // Do not broadcast unrecognized/error replies publicly; only send commands (#/.)
                 boolean isCommand = text.startsWith("#") || text.startsWith(".");
-                boolean sent = isCommand && WebSocketClientManager.getInstance().trySendChatRateLimited(text);
+                boolean sent = (isCommand || echoPublic) && WebSocketClientManager.getInstance().trySendChatRateLimited(text);
                 LOGGER.info("chat_send -> {} (sent={})", text, sent);
+                if (!isCommand && !echoPublic) {
+                    // Show locally in HUD without sending to public chat
+                    net.minecraft.client.MinecraftClient mc = net.minecraft.client.MinecraftClient.getInstance();
+                    if (mc != null) {
+                        mc.execute(() -> {
+                            if (mc.inGameHud != null) {
+                                mc.inGameHud.getChatHud().addMessage(net.minecraft.text.Text.of(text));
+                            }
+                        });
+                    }
+                }
                 return;
             }
             if ("action_request".equals(type)) {

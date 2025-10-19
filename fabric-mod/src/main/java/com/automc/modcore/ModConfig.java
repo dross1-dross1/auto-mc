@@ -9,6 +9,7 @@ package com.automc.modcore;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.annotations.SerializedName;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -23,18 +24,29 @@ public final class ModConfig {
     private static final Logger LOGGER = LogManager.getLogger("AutoMinecraft.Config");
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
+    @SerializedName("backend_url")
     public final String backendUrl;
-    public final String playerId;
+    @SerializedName("telemetry_interval_ms")
     public final int telemetryIntervalMs;
+    @SerializedName("chat_bridge_enabled")
     public final boolean chatBridgeEnabled;
+    @SerializedName("chat_bridge_rate_limit_per_sec")
     public final int chatBridgeRateLimitPerSec;
+    @SerializedName("auth_token")
+    public final String authToken;
+    @SerializedName("command_prefix")
+    public final String commandPrefix;
+    @SerializedName("echo_public_default")
+    public final boolean echoPublicDefault;
 
-    private ModConfig(String backendUrl, String playerId, int telemetryIntervalMs, boolean chatBridgeEnabled, int chatBridgeRateLimitPerSec) {
+    private ModConfig(String backendUrl, int telemetryIntervalMs, boolean chatBridgeEnabled, int chatBridgeRateLimitPerSec, String authToken, String commandPrefix, boolean echoPublicDefault) {
         this.backendUrl = backendUrl;
-        this.playerId = playerId;
         this.telemetryIntervalMs = telemetryIntervalMs;
         this.chatBridgeEnabled = chatBridgeEnabled;
         this.chatBridgeRateLimitPerSec = chatBridgeRateLimitPerSec;
+        this.authToken = authToken;
+        this.commandPrefix = commandPrefix;
+        this.echoPublicDefault = echoPublicDefault;
     }
 
     public static ModConfig load() {
@@ -43,7 +55,7 @@ public final class ModConfig {
         try {
             if (Files.notExists(path)) {
                 Files.createDirectories(configDir);
-                ModConfig def = new ModConfig("ws://127.0.0.1:8765", "player-1", 1000, true, 2);
+                ModConfig def = new ModConfig("ws://127.0.0.1:8765", 1000, true, 2, null, "!", false);
                 try (BufferedWriter w = Files.newBufferedWriter(path, StandardCharsets.UTF_8)) {
                     GSON.toJson(def, w);
                 }
@@ -55,7 +67,7 @@ public final class ModConfig {
             }
         } catch (IOException e) {
             LOGGER.warn("failed to load config, using defaults: {}", e.toString());
-            return new ModConfig("ws://127.0.0.1:8765", "player-1", 1000, true, 2);
+            return new ModConfig("ws://127.0.0.1:8765", 1000, true, 2, null, "!", false);
         }
     }
 }

@@ -26,5 +26,6 @@ public class AutoMinecraftClient implements ClientModInitializer {
         MessagePump.register();
         WebSocketClientManager.getInstance().start(config);
         ChatInterceptor.register();
+        ChatEventForwarder.register();
     }
 }

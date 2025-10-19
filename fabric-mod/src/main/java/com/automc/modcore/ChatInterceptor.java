@@ -20,7 +20,8 @@ public final class ChatInterceptor {
 
     public static void register() {
         ClientSendMessageEvents.ALLOW_CHAT.register((message) -> {
-            if (message != null && message.startsWith("!")) {
+            String prefix = WebSocketClientManager.getInstance().getConfigOrDefaultCommandPrefix("!");
+            if (message != null && prefix != null && !prefix.isEmpty() && message.startsWith(prefix)) {
                 // swallow and forward to backend as command
                 JsonObject obj = new JsonObject();
                 obj.addProperty("type", "command");

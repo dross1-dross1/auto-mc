@@ -38,7 +38,7 @@ async def recv_until_type(ws, type_name: str, timeout: float = 3.0) -> Dict[str,
 
 async def main() -> int:
     passed = 0
-    total = 7
+    total = 9
 
     async with websockets.connect(WS_URL) as ws:
         # 1) Handshake
@@ -110,7 +110,31 @@ async def main() -> int:
         print("[ok] echo")
         passed += 1
 
-        # 5) !craft -> plan then action_request
+        # 4b) !help -> chat_send
+        await send_json(ws, {
+            "type": "command",
+            "request_id": "req-help-1",
+            "text": "!help",
+            "player_id": PLAYER_ID,
+        })
+        helpmsg = await recv_until_type(ws, "chat_send")
+        assert "Available commands" in helpmsg.get("text", ""), "help text missing"
+        print("[ok] help")
+        passed += 1
+
+        # 5) !multicast -> chat_send fan-out (single target)
+        await send_json(ws, {
+            "type": "command",
+            "request_id": "req-mcast-1",
+            "text": "!multicast tester !echo hello",
+            "player_id": PLAYER_ID,
+        })
+        mcast = await recv_until_type(ws, "chat_send")
+        assert mcast.get("text") == "hello", "multicast payload mismatch"
+        print("[ok] multicast")
+        passed += 1
+
+        # 6) !craft -> plan then action_request
         await send_json(ws, {
             "type": "command",
             "request_id": "req-craft-1",
@@ -125,14 +149,14 @@ async def main() -> int:
         print("[ok] craft plan + first action_request")
         passed += 1
 
-        # 6) ping -> pong
+        # 7) ping -> pong
         await send_json(ws, {"type": "ping"})
         pong = await recv_until_type(ws, "pong")
         assert pong.get("type") == "pong", "did not receive pong"
         print("[ok] ping/pong")
         passed += 1
 
-        # 7) invalid JSON should not close connection
+        # 8) invalid JSON should not close connection
         await ws.send("{ this is not json }")
         # Send another ping to verify connection still alive
         await send_json(ws, {"type": "ping"})

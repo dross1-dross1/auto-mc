@@ -26,6 +26,24 @@ class TestIntents(unittest.TestCase):
     def test_non_command_returns_none(self) -> None:
         self.assertIsNone(parse_command_text("hello"))
 
+    def test_help(self) -> None:
+        self.assertEqual(parse_command_text("!help"), {"type": "help"})
+
+    def test_echomulti_parse(self) -> None:
+        intent = parse_command_text("!echomulti a,b !echo hi")
+        self.assertEqual(intent, {"type": "multicast", "targets": ["a", "b"], "text": "hi"})
+        intent2 = parse_command_text("!echomulti a,b #stop")
+        self.assertEqual(intent2, {"type": "multicast", "targets": ["a", "b"], "text": "#stop"})
+
+    def test_echoall_parse(self) -> None:
+        intent = parse_command_text("!echoall !echo hi")
+        self.assertEqual(intent, {"type": "broadcast", "text": "hi"})
+        intent2 = parse_command_text("!echoall .say hi")
+        self.assertEqual(intent2, {"type": "broadcast", "text": ".say hi"})
+
+    def test_who_parse(self) -> None:
+        self.assertEqual(parse_command_text("!who"), {"type": "who"})
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -32,14 +32,16 @@ class TestDispatcher(unittest.TestCase):
         self.assertEqual(d._acquire_to_chat({"item": "minecraft:planks"}), "#mine oak_log")
         self.assertEqual(d._acquire_to_chat({"item": "minecraft:stick"}), "#mine oak_log")
 
-    def test_to_action_request_ensure_context_uses_chat_bridge_goto(self) -> None:
+    def test_to_action_request_ensure_context_uses_mod_native_ensure(self) -> None:
         d = Dispatcher(DummyWS())
         msg1 = d._to_action_request({"op": "acquire", "item": "crafting_table_nearby"}, "a1")
-        self.assertEqual(msg1.get("mode"), "chat_bridge")
-        self.assertEqual(msg1.get("chat_text"), "#goto crafting_table")
+        self.assertEqual(msg1.get("mode"), "mod_native")
+        self.assertEqual(msg1.get("op"), "ensure")
+        self.assertEqual(msg1.get("ensure"), "crafting_table_nearby")
         msg2 = d._to_action_request({"op": "acquire", "item": "furnace_nearby"}, "a2")
-        self.assertEqual(msg2.get("mode"), "chat_bridge")
-        self.assertEqual(msg2.get("chat_text"), "#goto furnace")
+        self.assertEqual(msg2.get("mode"), "mod_native")
+        self.assertEqual(msg2.get("op"), "ensure")
+        self.assertEqual(msg2.get("ensure"), "furnace_nearby")
 
     def test_skip_step_due_to_inventory(self) -> None:
         state = DummyState({"minecraft:stick": 4, "minecraft:iron_ingot": 3})

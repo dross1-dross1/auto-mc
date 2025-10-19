@@ -18,7 +18,7 @@ This README is the working plan: what to build, the outcomes to hit, and how to 
 
 - Type commands like `!craft 1 iron pickaxe` and watch the agent do it end-to-end, survival-safe.
 - Multiplayer-ready: multiple agents (clients) connect to one central Python backend (can be remote) with auth.
-- Chat-bridge control for Baritone/Wurst; mod-native actions for gaps; settings can be broadcast/overridden centrally.
+- Chat-bridge control for Baritone/Wurst; mod-native actions only for ensure-context and minimal UI interactions; settings can be broadcast/overridden centrally.
 - Dimension-aware tasks (portal registry, optional portal creation), coop building, and basic combat toggles enabled by config.
 - Deterministic planner first; LLM parsing deferred. State, portal registry, and shared storage catalog persist and resume.
 - Planner bootstrap: ensure tool prerequisites (e.g., craft `stone_pickaxe` before `iron_pickaxe`).
@@ -34,19 +34,20 @@ chat `!command` → mod sends JSON → backend parses → planner makes step lis
 ## Architecture (high-level)
 
 Components
-- Fabric mod: input (`!` chat), telemetry, chat bridge, mod-native actions, small persistence, shared storage catalog.
+- Fabric mod: input (`!` chat), telemetry, chat bridge, minimal mod-native actions (ensure/open/interact), small persistence, shared storage catalog.
 - Baritone/Wurst: movement/building/mining/combat via chat commands; no tight API coupling.
 - Python backend: WebSocket server, intent parsing, deterministic planner, dispatcher, per-agent state, progress/resume.
 - Optional LLM: parse natural language into your intent JSON; never plans, always validated.
 
 Data flow
 - Inbound: player types `!command` → mod sends `{type:"command"}` → backend converts to intent → planner emits plan → dispatcher sends actions.
-- Execution: mod executes actions either by sending chat (`#`, `.`) or via mod-native operations.
+- Execution: mod executes actions either by sending chat (`#`, `.`) to offload to Baritone/Wurst or via minimal mod-native operations (ensure/open/interact for crafting/smelting UI).
 - Feedback: mod emits `progress_update`, `telemetry_update`, and forwards filtered `chat_event` lines.
 
 Contracts (summary)
 - Correlate with ids and sequence numbers: `request_id`, `plan_id`, `action_id`, `seq`.
 - Messages: `handshake`, `command`, `plan`, `action_request`, `progress_update`, `telemetry_update`, `state_request`, `state_response`, `inventory_snapshot`, `inventory_diff`, `world_discovery`, `chat_send`, `chat_event`, `cancel`.
+ - Messages: `handshake`, `command`, `plan`, `action_request`, `progress_update`, `telemetry_update`, `state_request`, `state_response`, `inventory_snapshot`, `inventory_diff`, `world_discovery`, `chat_send`, `chat_event`, `cancel`, `chat_broadcast` (planned).
 - Acks/timeouts/retries: each `action_request` expects a `progress_update` with `status` in `{ok, fail, skipped, cancelled}` within a timeout; backend may retry with bounded attempts/backoff or cancel; resume on reconnect supported.
 
 State & persistence
@@ -300,7 +301,7 @@ Telemetry update (from mod):
 ```json
 {
   "type": "telemetry_update",
-  "player_id": "player-1",
+  "player_id": "<uuid>",
   "ts": "2025-10-18T12:34:56Z",
   "state": {
     "pos": [0, 64, 0],
@@ -314,7 +315,9 @@ Telemetry update (from mod):
     "hotbar_slot": 0,
     "xp_level": 0,
     "time": 6000,
-    "biome": "minecraft:plains"
+    "biome": "minecraft:plains",
+    "uuid": "<uuid>",
+    "username": "playerName"
   }
 }
 ```
@@ -451,15 +454,12 @@ Backend (`.env`):
 
 Mod (`autominecraft.json` in the game’s config folder):
 - `backend_url` (e.g., ws://127.0.0.1:8765)
-- `player_id` (free-form string)
- - `telemetry_interval_ms` (e.g., 1000)
- - `chat_bridge_enabled` (true|false)
- - `chat_bridge_rate_limit_per_sec` (e.g., 2)
- - `inventory_snapshot_debounce_ms` (e.g., 250)
- - `inventory_snapshot_max_payload_kb` (e.g., 64)
- - `auth_token` (if backend requires it)
- - `rate_limit_chat_sends_per_sec` (e.g., 5)
- - `settings_overrides` (e.g., baritone/wurst settings to apply on connect)
+- `telemetry_interval_ms` (e.g., 1000)
+- `chat_bridge_enabled` (true|false)
+- `chat_bridge_rate_limit_per_sec` (e.g., 2)
+- `command_prefix` (e.g., `!`)
+- `echo_public_default` (true|false)
+- `auth_token` (if backend requires it)
 
 No secrets in the repo.
 
