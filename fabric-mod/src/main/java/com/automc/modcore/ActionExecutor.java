@@ -45,12 +45,11 @@ final class ActionExecutor {
 
     private static void handleEnsure(String actionId, String ensure) {
         if ("crafting_table_nearby".equals(ensure)) {
-            // v0 stub: acknowledge ensure request; future: craft/place/use table
-            sendProgress(actionId, "skipped", "ensure crafting_table_nearby not implemented yet");
+            EnsureContext.ensureCraftingTableNearby(actionId);
             return;
         }
         if ("furnace_nearby".equals(ensure)) {
-            sendProgress(actionId, "skipped", "ensure furnace_nearby not implemented yet");
+            EnsureContext.ensureFurnaceNearby(actionId);
             return;
         }
         sendProgress(actionId, "skipped", "unknown ensure: " + ensure);

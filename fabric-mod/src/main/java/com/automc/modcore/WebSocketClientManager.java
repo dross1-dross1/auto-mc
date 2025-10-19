@@ -159,6 +159,19 @@ public final class WebSocketClientManager {
         st.addProperty("air", mc.player.getAir());
         st.addProperty("xp_level", mc.player.experienceLevel);
         st.addProperty("time", (int) (mc.world.getTimeOfDay() % Integer.MAX_VALUE));
+        // Inventory snapshot (non-empty slots)
+        com.google.gson.JsonArray inv = new com.google.gson.JsonArray();
+        net.minecraft.entity.player.PlayerInventory pinv = mc.player.getInventory();
+        for (int i = 0; i < pinv.size(); i++) {
+            net.minecraft.item.ItemStack stack = pinv.getStack(i);
+            if (stack == null || stack.isEmpty()) continue;
+            JsonObject slot = new JsonObject();
+            slot.addProperty("slot", i);
+            slot.addProperty("id", net.minecraft.registry.Registries.ITEM.getId(stack.getItem()).toString());
+            slot.addProperty("count", stack.getCount());
+            inv.add(slot);
+        }
+        st.add("inventory", inv);
 
         JsonObject msg = new JsonObject();
         msg.addProperty("type", "telemetry_update");

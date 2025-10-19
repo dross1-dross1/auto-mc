@@ -5,11 +5,13 @@ from __future__ import annotations
 Purpose: Given an item id and count, expand via a tiny skill graph into a list
 of steps the mod understands (acquire/craft/smelt), including minimal tool
 gating for mining.
+
 """
 
 from typing import Dict, List
 
 from .skill_graph import SKILLS, MINEABLE_ITEMS, MINING_TOOL_REQUIREMENTS
+from .state_service import StateService  # type: ignore
 
 
 def _expand_skill(target: str, count: int, steps: List[Dict[str, object]]) -> None:
@@ -63,10 +65,12 @@ def plan_craft(item_id: str, count: int) -> List[Dict[str, object]]:
         if s.get("op") == "acquire" and s.get("item") in MINING_TOOL_REQUIREMENTS:
             required_any = MINING_TOOL_REQUIREMENTS[str(s["item"])]  # type: ignore[index]
             if not any(have_tools.get(t, 0) > 0 for t in required_any):
-                # Prepend a stone_pickaxe craft before this acquire if not present in history
-                if have_tools.get("minecraft:stone_pickaxe", 0) == 0:
-                    _expand_skill("minecraft:stone_pickaxe", 1, gated)
-                    have_tools["minecraft:stone_pickaxe"] = 1
+                # Craft the first acceptable tool we don't yet have (wooden -> stone -> iron)
+                for candidate in required_any:
+                    if have_tools.get(candidate, 0) == 0:
+                        _expand_skill(candidate, 1, gated)
+                        have_tools[candidate] = 1
+                        break
         gated.append(s)
 
     return gated

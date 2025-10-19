@@ -1,0 +1,399 @@
+Field Summary
+Fields Modifier and Type 	Field and Description
+Settings.Setting<java.util.List<net.minecraft.item.Item>> 	acceptableThrowawayItems
+Blocks that Baritone is allowed to place (as throwaway, for sneak bridging, pillaring, etc.)
+Settings.Setting<java.lang.Boolean> 	allowBreak
+Allow Baritone to break blocks
+Settings.Setting<java.util.List<net.minecraft.block.Block>> 	allowBreakAnyway
+Blocks that baritone will be allowed to break even with allowBreak set to false
+Settings.Setting<java.lang.Boolean> 	allowDiagonalAscend
+Allow diagonal ascending
+Settings.Setting<java.lang.Boolean> 	allowDiagonalDescend
+Allow descending diagonally
+Settings.Setting<java.lang.Boolean> 	allowDownward
+Allow mining the block directly beneath its feet
+Settings.Setting<java.lang.Boolean> 	allowInventory
+Allow Baritone to move items in your inventory to your hotbar
+Settings.Setting<java.lang.Boolean> 	allowJumpAt256
+If true, parkour is allowed to make jumps when standing on blocks at the maximum height, so player feet is y=256
+Settings.Setting<java.lang.Boolean> 	allowOnlyExposedOres
+This will only allow baritone to mine exposed ores, can be used to stop ore obfuscators on servers that use them.
+Settings.Setting<java.lang.Integer> 	allowOnlyExposedOresDistance
+When allowOnlyExposedOres is enabled this is the distance around to search.
+Settings.Setting<java.lang.Boolean> 	allowOvershootDiagonalDescend
+Is it okay to sprint through a descend followed by a diagonal? The player overshoots the landing, but not enough to fall off.
+Settings.Setting<java.lang.Boolean> 	allowParkour
+You know what it is
+Settings.Setting<java.lang.Boolean> 	allowParkourAscend
+This should be monetized it's so good
+Settings.Setting<java.lang.Boolean> 	allowParkourPlace
+Actually pretty reliable.
+Settings.Setting<java.lang.Boolean> 	allowPlace
+Allow Baritone to place blocks
+Settings.Setting<java.lang.Boolean> 	allowSprint
+Allow Baritone to sprint
+Settings.Setting<java.lang.Boolean> 	allowVines
+Enables some more advanced vine features.
+Settings.Setting<java.lang.Boolean> 	allowWalkOnBottomSlab
+Slab behavior is complicated, disable this for higher path reliability.
+Settings.Setting<java.lang.Boolean> 	allowWaterBucketFall
+Allow Baritone to fall arbitrary distances and place a water bucket beneath it.
+java.util.List<Settings.Setting<?>> 	allSettings
+A list of all settings
+Settings.Setting<java.lang.Boolean> 	antiCheatCompatibility
+Will cause some minor behavioral differences to ensure that Baritone works on anticheats.
+Settings.Setting<java.lang.Boolean> 	assumeExternalAutoTool
+Disable baritone's auto-tool at runtime, but still assume that another mod will provide auto tool functionality
+Settings.Setting<java.lang.Boolean> 	assumeSafeWalk
+Assume safe walk functionality; don't sneak on a backplace traverse.
+Settings.Setting<java.lang.Boolean> 	assumeStep
+Assume step functionality; don't jump on an Ascend.
+Settings.Setting<java.lang.Boolean> 	assumeWalkOnLava
+If you have Fire Resistance and Jesus then I guess you could turn this on lol
+Settings.Setting<java.lang.Boolean> 	assumeWalkOnWater
+Allow Baritone to assume it can walk on still water just like any other block.
+Settings.Setting<java.lang.Boolean> 	autoTool
+Automatically select the best available tool
+Settings.Setting<java.lang.Boolean> 	avoidance
+Toggle the following 4 settings
+Settings.Setting<java.lang.Double> 	avoidBreakingMultiplier
+this multiplies the break speed, if set above 1 it's "encourage breaking" instead
+Settings.Setting<java.lang.Boolean> 	avoidUpdatingFallingBlocks
+If this setting is true, Baritone will never break a block that is adjacent to an unsupported falling block.
+Settings.Setting<java.lang.Integer> 	axisHeight
+The "axis" command (aka GoalAxis) will go to a axis, or diagonal axis, at this Y level.
+Settings.Setting<java.lang.Boolean> 	backfill
+Fill in blocks behind you
+Settings.Setting<java.lang.Double> 	backtrackCostFavoringCoefficient
+Set to 1.0 to effectively disable this feature
+Settings.Setting<java.lang.Boolean> 	blacklistClosestOnFailure
+When GetToBlockProcess or MineProcess fails to calculate a path, instead of just giving up, mark the closest instance of that block as "unreachable" and go towards the next closest.
+Settings.Setting<java.lang.Double> 	blockBreakAdditionalPenalty
+This is just a tiebreaker to make it less likely to break blocks if it can avoid it.
+Settings.Setting<java.lang.Double> 	blockPlacementPenalty
+It doesn't actually take twenty ticks to place a block, this cost is so high because we want to generally conserve blocks which might be limited.
+Settings.Setting<java.lang.Float> 	blockReachDistance
+Block reach distance
+Settings.Setting<java.util.List<net.minecraft.block.Block>> 	blocksToAvoid
+Blocks that Baritone will attempt to avoid (Used in avoidance)
+Settings.Setting<java.util.List<net.minecraft.block.Block>> 	blocksToAvoidBreaking
+blocks that baritone shouldn't break, but can if it needs to.
+Settings.Setting<java.util.List<net.minecraft.block.Block>> 	blocksToDisallowBreaking
+Blocks that Baritone is not allowed to break
+Settings.Setting<java.lang.Double> 	breakCorrectBlockPenaltyMultiplier
+Multiply the cost of breaking a block that's correct in the builder's schematic by this coefficient
+Settings.Setting<java.lang.Boolean> 	breakFromAbove
+Allow standing above a block while mining it, in BuilderProcess
+Settings.Setting<java.lang.Integer> 	builderTickScanRadius
+Distance to scan every tick for updates.
+Settings.Setting<java.util.List<net.minecraft.block.Block>> 	buildIgnoreBlocks
+A list of blocks to be treated as if they're air.
+Settings.Setting<java.lang.Boolean> 	buildIgnoreDirection
+If this is true, the builder will ignore directionality of certain blocks like glazed terracotta.
+Settings.Setting<java.lang.Boolean> 	buildIgnoreExisting
+If this is true, the builder will treat all non-air blocks as correct.
+Settings.Setting<java.util.List<java.lang.String>> 	buildIgnoreProperties
+A list of names of block properties the builder will ignore.
+Settings.Setting<java.lang.Boolean> 	buildInLayers
+Don't consider the next layer in builder until the current one is done
+Settings.Setting<java.lang.Boolean> 	buildOnlySelection
+Only build the selected part of schematics
+Settings.Setting<net.minecraft.util.math.Vec3i> 	buildRepeat
+How far to move before repeating the build.
+Settings.Setting<java.lang.Integer> 	buildRepeatCount
+How many times to buildrepeat.
+Settings.Setting<java.lang.Boolean> 	buildRepeatSneaky
+Don't notify schematics that they are moved.
+Settings.Setting<java.util.List<net.minecraft.block.Block>> 	buildSkipBlocks
+A list of blocks to be treated as correct.
+Settings.Setting<java.util.Map<net.minecraft.block.Block,java.util.List<net.minecraft.block.Block>>> 	buildSubstitutes
+A mapping of blocks to blocks to be built instead
+Settings.Setting<java.util.Map<net.minecraft.block.Block,java.util.List<net.minecraft.block.Block>>> 	buildValidSubstitutes
+A mapping of blocks to blocks treated as correct in their position
+java.util.Map<java.lang.String,Settings.Setting<?>> 	byLowerName
+A map of lowercase setting field names to their respective setting
+Settings.Setting<java.lang.Long> 	cachedChunksExpirySeconds
+Cached chunks (regardless of if they're in RAM or saved to disk) expire and are deleted after this number of seconds -1 to disable
+Settings.Setting<java.lang.Float> 	cachedChunksOpacity
+0.0f = not visible, fully transparent (instead of setting this to 0, turn off renderCachedChunks) 1.0f = fully opaque
+Settings.Setting<java.lang.Boolean> 	cancelOnGoalInvalidation
+Cancel the current path if the goal has changed, and the path originally ended in the goal but doesn't anymore.
+Settings.Setting<java.lang.Boolean> 	censorCoordinates
+Censor coordinates in goals and block positions
+Settings.Setting<java.lang.Boolean> 	censorRanCommands
+Censor arguments to ran commands, to hide, for example, coordinates to #goal
+Settings.Setting<java.lang.Boolean> 	chatControl
+Allow chat based control of Baritone.
+Settings.Setting<java.lang.Boolean> 	chatControlAnyway
+Some clients like Impact try to force chatControl to off, so here's a second setting to do it anyway
+Settings.Setting<java.lang.Boolean> 	chatDebug
+Print all the debug messages to chat
+Settings.Setting<java.lang.Boolean> 	chunkCaching
+The big one.
+Settings.Setting<java.awt.Color> 	colorBestPathSoFar
+The color of the best path so far
+Settings.Setting<java.awt.Color> 	colorBlocksToBreak
+The color of the blocks to break
+Settings.Setting<java.awt.Color> 	colorBlocksToPlace
+The color of the blocks to place
+Settings.Setting<java.awt.Color> 	colorBlocksToWalkInto
+The color of the blocks to walk into
+Settings.Setting<java.awt.Color> 	colorCurrentPath
+The color of the current path
+Settings.Setting<java.awt.Color> 	colorGoalBox
+The color of the goal box
+Settings.Setting<java.awt.Color> 	colorInvertedGoalBox
+The color of the goal box when it's inverted
+Settings.Setting<java.awt.Color> 	colorMostRecentConsidered
+The color of the path to the most recent considered node
+Settings.Setting<java.awt.Color> 	colorNextPath
+The color of the next path
+Settings.Setting<java.awt.Color> 	colorSelection
+The color of all selections
+Settings.Setting<java.awt.Color> 	colorSelectionPos1
+The color of the selection pos 1
+Settings.Setting<java.awt.Color> 	colorSelectionPos2
+The color of the selection pos 2
+Settings.Setting<java.lang.Boolean> 	considerPotionEffects
+For example, if you have Mining Fatigue or Haste, adjust the costs of breaking blocks accordingly.
+Settings.Setting<java.lang.Double> 	costHeuristic
+This is the big A* setting.
+Settings.Setting<java.lang.Integer> 	costVerificationLookahead
+Stop 5 movements before anything that made the path COST_INF.
+Settings.Setting<java.lang.Boolean> 	cutoffAtLoadBoundary
+After calculating a path (potentially through cached chunks), artificially cut it off to just the part that is entirely within currently loaded chunks.
+Settings.Setting<java.lang.Boolean> 	desktopNotifications
+Desktop notifications
+Settings.Setting<java.lang.Boolean> 	disableCompletionCheck
+Turn this on if your exploration filter is enormous, you don't want it to check if it's done, and you are just fine with it just hanging on completion
+Settings.Setting<java.lang.Boolean> 	disconnectOnArrival
+Disconnect from the server upon arriving at your goal
+Settings.Setting<java.lang.Boolean> 	distanceTrim
+Trim incorrect positions too far away, helps performance but hurts reliability in very large schematics
+Settings.Setting<java.lang.Boolean> 	doBedWaypoints
+allows baritone to save bed waypoints when interacting with beds
+Settings.Setting<java.lang.Boolean> 	doDeathWaypoints
+allows baritone to save death waypoints
+Settings.Setting<java.lang.Boolean> 	echoCommands
+Echo commands to chat when they are run
+Settings.Setting<java.lang.Boolean> 	enterPortal
+When running a goto towards a nether portal block, walk all the way into the portal instead of stopping one block before.
+Settings.Setting<java.lang.Integer> 	exploreChunkSetMinimumSize
+Take the 10 closest chunks, even if they aren't strictly tied for distance metric from origin.
+Settings.Setting<java.lang.Boolean> 	exploreForBlocks
+When GetToBlock or non-legit Mine doesn't know any locations for the desired block, explore randomly instead of giving up.
+Settings.Setting<java.lang.Integer> 	exploreMaintainY
+Attempt to maintain Y coordinate while exploring
+Settings.Setting<java.lang.Boolean> 	extendCacheOnThreshold
+When the cache scan gives less blocks than the maximum threshold (but still above zero), scan the main world too.
+Settings.Setting<java.lang.Boolean> 	fadePath
+Start fading out the path at 20 movements ahead, and stop rendering it entirely 30 movements ahead.
+Settings.Setting<java.lang.Long> 	failureTimeoutMS
+Pathing can never take longer than this, even if that means failing to find any path at all
+Settings.Setting<java.lang.Float> 	followOffsetDirection
+The actual GoalNear is set in this direction from the entity you're following.
+Settings.Setting<java.lang.Double> 	followOffsetDistance
+The actual GoalNear is set this distance away from the entity you're following
+Settings.Setting<java.lang.Integer> 	followRadius
+The radius (for the GoalNear) of how close to your target position you actually have to be
+Settings.Setting<java.lang.Boolean> 	forceInternalMining
+When mining block of a certain type, try to mine two at once instead of one.
+Settings.Setting<java.lang.Boolean> 	freeLook
+Move without having to force the client-sided rotations
+Settings.Setting<java.lang.Boolean> 	goalBreakFromAbove
+As well as breaking from above, set a goal to up and to the side of all blocks to break.
+Settings.Setting<java.lang.Float> 	goalRenderLineWidthPixels
+Line width of the goal when rendered, in pixels
+Settings.Setting<java.lang.Integer> 	incorrectSize
+The set of incorrect blocks can never grow beyond this size
+Settings.Setting<java.lang.Boolean> 	internalMiningAirException
+Modification to the previous setting, only has effect if forceInternalMining is true If true, only apply the previous setting if the block adjacent to the goal isn't air.
+Settings.Setting<java.lang.Boolean> 	itemSaver
+Stop using tools just before they are going to break.
+Settings.Setting<java.lang.Integer> 	itemSaverThreshold
+Durability to leave on the tool when using itemSaver
+Settings.Setting<java.lang.Double> 	jumpPenalty
+Additional penalty for hitting the space bar (ascend, pillar, or parkour) because it uses hunger
+Settings.Setting<java.lang.Integer> 	layerHeight
+How high should the individual layers be?
+Settings.Setting<java.lang.Boolean> 	layerOrder
+false = build from bottom to top
+Settings.Setting<java.lang.Boolean> 	legitMine
+Disallow MineBehavior from using X-Ray to see where the ores are.
+Settings.Setting<java.lang.Boolean> 	legitMineIncludeDiagonals
+Magically see ores that are separated diagonally from existing ores.
+Settings.Setting<java.lang.Integer> 	legitMineYLevel
+What Y level to go to for legit strip mining
+Settings.Setting<java.lang.Boolean> 	logAsToast
+Shows popup message in the upper right corner, similarly to when you make an advancement
+Settings.Setting<java.util.function.Consumer<net.minecraft.util.text.ITextComponent>> 	logger
+The function that is called when Baritone will log to chat.
+Settings.Setting<java.lang.Boolean> 	mapArtMode
+Build in map art mode, which makes baritone only care about the top block in each column
+Settings.Setting<java.lang.Integer> 	maxCachedWorldScanCount
+After finding this many instances of the target block in the cache, it will stop expanding outward the chunk search.
+Settings.Setting<java.lang.Double> 	maxCostIncrease
+If a movement's cost increases by more than this amount between calculation and execution (due to changes in the environment / world), cancel and recalculate
+Settings.Setting<java.lang.Integer> 	maxFallHeightBucket
+How far are you allowed to fall onto solid ground (with a water bucket)? It's not that reliable, so I've set it below what would kill an unarmored player (23)
+Settings.Setting<java.lang.Integer> 	maxFallHeightNoWater
+How far are you allowed to fall onto solid ground (without a water bucket)? 3 won't deal any damage.
+Settings.Setting<java.lang.Integer> 	maxPathHistoryLength
+If we are more than 300 movements into the current path, discard the oldest segments, as they are no longer useful
+Settings.Setting<java.lang.Long> 	mineDropLoiterDurationMSThanksLouca
+While mining, wait this number of milliseconds after mining an ore to see if it will drop an item instead of immediately going onto the next one
+Settings.Setting<java.lang.Integer> 	mineGoalUpdateInterval
+Rescan for the goal once every 5 ticks.
+Settings.Setting<java.lang.Boolean> 	mineScanDroppedItems
+While mining, should it also consider dropped items of the correct type as a pathing destination (as well as ore blocks)?
+Settings.Setting<java.lang.Boolean> 	minimumImprovementRepropagation
+Don't repropagate cost improvements below 0.01 ticks.
+Settings.Setting<java.lang.Integer> 	minYLevelWhileMining
+Sets the minimum y level whilst mining - set to 0 to turn off.
+Settings.Setting<java.lang.Double> 	mobAvoidanceCoefficient
+Set to 1.0 to effectively disable this feature
+Settings.Setting<java.lang.Integer> 	mobAvoidanceRadius
+Distance to avoid mobs.
+Settings.Setting<java.lang.Double> 	mobSpawnerAvoidanceCoefficient
+Set to 1.0 to effectively disable this feature
+Settings.Setting<java.lang.Integer> 	mobSpawnerAvoidanceRadius
+Distance to avoid mob spawners.
+Settings.Setting<java.lang.Integer> 	movementTimeoutTicks
+If a movement takes this many ticks more than its initial cost estimate, cancel it
+Settings.Setting<java.lang.Boolean> 	notificationOnBuildFinished
+Desktop notification on build finished
+Settings.Setting<java.lang.Boolean> 	notificationOnExploreFinished
+Desktop notification on explore finished
+Settings.Setting<java.lang.Boolean> 	notificationOnFarmFail
+Desktop notification on farm fail
+Settings.Setting<java.lang.Boolean> 	notificationOnMineFail
+Desktop notification on mine fail
+Settings.Setting<java.lang.Boolean> 	notificationOnPathComplete
+Desktop notification on path complete
+Settings.Setting<java.util.function.BiConsumer<java.lang.String,java.lang.Boolean>> 	notifier
+The function that is called when Baritone will send a desktop notification.
+Settings.Setting<java.util.List<net.minecraft.block.Block>> 	okIfAir
+A list of blocks to become air
+Settings.Setting<java.lang.Boolean> 	okIfWater
+Override builder's behavior to not attempt to correct blocks that are currently water
+Settings.Setting<java.lang.Boolean> 	overshootTraverse
+If we overshoot a traverse and end up one block beyond the destination, mark it as successful anyway.
+Settings.Setting<java.lang.Double> 	pathCutoffFactor
+Static cutoff factor.
+Settings.Setting<java.lang.Integer> 	pathCutoffMinimumLength
+Only apply static cutoff for paths of at least this length (in terms of number of movements)
+Settings.Setting<java.lang.Integer> 	pathHistoryCutoffAmount
+If the current path is too long, cut off this many movements from the beginning.
+Settings.Setting<java.lang.Integer> 	pathingMapDefaultSize
+Default size of the Long2ObjectOpenHashMap used in pathing
+Settings.Setting<java.lang.Float> 	pathingMapLoadFactor
+Load factor coefficient for the Long2ObjectOpenHashMap used in pathing
+Settings.Setting<java.lang.Integer> 	pathingMaxChunkBorderFetch
+The maximum number of times it will fetch outside loaded or cached chunks before assuming that pathing has reached the end of the known area, and should therefore stop.
+Settings.Setting<java.lang.Float> 	pathRenderLineWidthPixels
+Line width of the path when rendered, in pixels
+Settings.Setting<java.lang.Boolean> 	pathThroughCachedOnly
+Exclusively use cached chunks for pathing
+Settings.Setting<java.lang.Boolean> 	pauseMiningForFallingBlocks
+When breaking blocks for a movement, wait until all falling blocks have settled before continuing
+Settings.Setting<java.lang.Long> 	planAheadFailureTimeoutMS
+Planning ahead while executing a segment can never take longer than this, even if that means failing to find any path at all
+Settings.Setting<java.lang.Long> 	planAheadPrimaryTimeoutMS
+Planning ahead while executing a segment ends after this amount of time, but only if a path has been found
+Settings.Setting<java.lang.Integer> 	planningTickLookahead
+Start planning the next path once the remaining movements tick estimates sum up to less than this value
+Settings.Setting<java.lang.Boolean> 	preferSilkTouch
+Always prefer silk touch tools over regular tools.
+Settings.Setting<java.lang.String> 	prefix
+The command prefix for chat control
+Settings.Setting<java.lang.Boolean> 	prefixControl
+Whether or not to allow you to run Baritone commands with the prefix
+Settings.Setting<java.lang.Long> 	primaryTimeoutMS
+Pathing ends after this amount of time, but only if a path has been found
+Settings.Setting<java.lang.Boolean> 	pruneRegionsFromRAM
+On save, delete from RAM any cached regions that are more than 1024 blocks away from the player
+Settings.Setting<java.lang.Double> 	randomLooking
+How many degrees to randomize the pitch and yaw every tick.
+Settings.Setting<java.lang.Boolean> 	renderCachedChunks
+ðŸ˜Ž Render cached chunks as semitransparent.
+Settings.Setting<java.lang.Boolean> 	renderGoal
+Render the goal
+Settings.Setting<java.lang.Boolean> 	renderGoalAnimated
+Render the goal as a sick animated thingy instead of just a box (also controls animation of GoalXZ if renderGoalXZBeacon is enabled)
+Settings.Setting<java.lang.Boolean> 	renderGoalIgnoreDepth
+Ignore depth when rendering the goal
+Settings.Setting<java.lang.Boolean> 	renderGoalXZBeacon
+Renders X/Z type Goals with the vanilla beacon beam effect.
+Settings.Setting<java.lang.Boolean> 	renderPath
+Render the path
+Settings.Setting<java.lang.Boolean> 	renderPathAsLine
+Render the path as a line instead of a frickin thingy
+Settings.Setting<java.lang.Boolean> 	renderPathIgnoreDepth
+Ignore depth when rendering the path
+Settings.Setting<java.lang.Boolean> 	renderSelection
+Render selections
+Settings.Setting<java.lang.Boolean> 	renderSelectionBoxes
+Render selection boxes
+Settings.Setting<java.lang.Boolean> 	renderSelectionBoxesIgnoreDepth
+Ignore depth when rendering the selection boxes (to break, to place, to walk into)
+Settings.Setting<java.lang.Boolean> 	renderSelectionCorners
+Render selection corners
+Settings.Setting<java.lang.Boolean> 	renderSelectionIgnoreDepth
+Ignore depth when rendering selections
+Settings.Setting<java.lang.Boolean> 	repackOnAnyBlockChange
+Whenever a block changes, repack the whole chunk that it's in
+Settings.Setting<java.lang.Boolean> 	replantCrops
+Replant normal Crops while farming and leave cactus and sugarcane to regrow
+Settings.Setting<java.lang.Boolean> 	replantNetherWart
+Replant nether wart while farming.
+Settings.Setting<java.lang.Boolean> 	rightClickContainerOnArrival
+When running a goto towards a container block (chest, ender chest, furnace, etc), right click and open it once you arrive.
+Settings.Setting<java.lang.Integer> 	rightClickSpeed
+How many ticks between right clicks are allowed.
+Settings.Setting<java.lang.String> 	schematicFallbackExtension
+The fallback used by the build command when no extension is specified.
+Settings.Setting<java.lang.Boolean> 	schematicOrientationX
+When this setting is true, build a schematic with the highest X coordinate being the origin, instead of the lowest
+Settings.Setting<java.lang.Boolean> 	schematicOrientationY
+When this setting is true, build a schematic with the highest Y coordinate being the origin, instead of the lowest
+Settings.Setting<java.lang.Boolean> 	schematicOrientationZ
+When this setting is true, build a schematic with the highest Z coordinate being the origin, instead of the lowest
+Settings.Setting<java.lang.Float> 	selectionLineWidth
+Line width of the goal when rendered, in pixels
+Settings.Setting<java.lang.Float> 	selectionOpacity
+The opacity of the selection.
+java.util.Map<Settings.Setting<?>,java.lang.reflect.Type> 	settingTypes 
+Settings.Setting<java.lang.Boolean> 	shortBaritonePrefix
+Use a short Baritone prefix [B] instead of [Baritone] when logging to chat
+Settings.Setting<java.lang.Boolean> 	simplifyUnloadedYCoord
+If your goal is a GoalBlock in an unloaded chunk, assume it's far enough away that the Y coord doesn't matter yet, and replace it with a GoalXZ to the same place before calculating a path.
+Settings.Setting<java.lang.Boolean> 	skipFailedLayers
+If a layer is unable to be constructed, just skip it.
+Settings.Setting<java.lang.Boolean> 	slowPath
+For debugging, consider nodes much much slower
+Settings.Setting<java.lang.Long> 	slowPathTimeDelayMS
+Milliseconds between each node
+Settings.Setting<java.lang.Long> 	slowPathTimeoutMS
+The alternative timeout number when slowPath is on
+Settings.Setting<java.lang.Boolean> 	splicePath
+When a new segment is calculated that doesn't overlap with the current one, but simply begins where the current segment ends, splice it on and make a longer combined path.
+Settings.Setting<java.lang.Boolean> 	sprintAscends
+Sprint and jump a block early on ascends wherever possible
+Settings.Setting<java.lang.Boolean> 	sprintInWater
+Continue sprinting while in water
+Settings.Setting<java.lang.Integer> 	startAtLayer
+Start building the schematic at a specific layer.
+Settings.Setting<java.util.function.BiConsumer<net.minecraft.util.text.ITextComponent,net.minecraft.util.text.ITextComponent>> 	toaster
+The function that is called when Baritone will show a toast.
+Settings.Setting<java.lang.Long> 	toastTimer
+The time of how long the message in the pop-up will display
+Settings.Setting<java.lang.Boolean> 	useSwordToMine
+Use sword to mine.
+Settings.Setting<java.lang.Double> 	walkOnWaterOnePenalty
+Walking on water uses up hunger really quick, so penalize it
+Settings.Setting<java.lang.Boolean> 	walkWhileBreaking
+Don't stop walking forward when you need to break blocks in your way
+Settings.Setting<java.lang.Integer> 	worldExploringChunkOffset
+While exploring the world, offset the closest unloaded chunk by this much in both axes.
+Settings.Setting<java.lang.Double> 	yLevelBoxSize
+The size of the box that is rendered when the current goal is a GoalYLevel

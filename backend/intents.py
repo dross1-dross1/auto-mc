@@ -8,6 +8,7 @@ dicts for the planner/dispatcher, avoiding LLM dependence in v0.
 Supported patterns:
 - !echo <text>
 - !craft <count> <item words>
+
 """
 
 import re

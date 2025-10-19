@@ -4,8 +4,8 @@
   "version": "${mod_version}",
   "name": "${mod_name}",
   "description": "${mod_desc}",
-  "authors": ["${mod_author}"],
-  "license": "MIT",
+  "authors": ["drzxcv", "docasdf", "mdqwerty"],
+  "license": "AGPL-3.0",
   "environment": "client",
   "entrypoints": {
     "client": [

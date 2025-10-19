@@ -10,6 +10,7 @@ telemetry; optional idle shutdown for dev.
 
 Engineering notes: Validate inputs defensively; keep handlers small; structured
 logging with request and player ids; avoid blocking the event loop.
+
 """
 
 import asyncio
@@ -178,7 +179,7 @@ class BackendServer:
             }
             await self._send_json(session.websocket, plan)
             # stream actions
-            dispatcher = Dispatcher(session.websocket)
+            dispatcher = Dispatcher(session.websocket, player_id=session.player_id, state_service=self.state)
             await dispatcher.run_linear(steps)
             return
 

@@ -183,6 +183,12 @@ Build this:
     - follow_entity (type/name) → `#follow entity <type>`
     - stop/pause/resume → `#stop`, `#pause`, `#resume`
     - baritone_setting (key,value) → `#set key value`
+    - Prefer Baritone/Wurst where possible to avoid re-implementing:
+      - navigate_to → `#goto x y z` or `#goto block_type` (e.g., crafting_table, furnace)
+      - mine → `#mine <block>` or `#mine <block> <count>`; enable `autoTool` and `legitMine` as needed
+      - explore → `#explore`
+      - tunneling → `#tunnel` (or Wurst `.excavate` when acceptable)
+      - follow → `#follow player <name>` / `#follow entity <type>`
     - tunnel/stripmine → `.tunnel ...` (Wurst) or `#tunnel ...` (if supported)
     - combat toggles (if allowed) → `.killaura on|off`, `.autoarmor on|off`, `.autoeat on|off`
     - explore (radius) → `#explore <radius>` (if supported)
@@ -490,11 +496,21 @@ Optional: Backend UI
   - Limits: multi-dimension travel handled at higher layer; noisy chat output.
   - See usage (`usage.md`) and in-game `#help`.
   - v0 defaults (sent by client after connect): `allowParkour=false`, `allowDiagonalAscend=false`, `assumeWalkOnWater=false`, `freeLook=false`, `primaryTimeoutMS=4000`.
+  - Full capability map and AutoMC usage: see `docs/baritone_capabilities.md`.
+  - Capability mapping: `#goto`, `#goal`+`#path`, `#mine <block> [count]`, `#tunnel`, `#explore`, `#wp`, `#follow`, `rightClickContainerOnArrival`.
+  - Settings commonly tuned: `autoTool`, `legitMine`, `allowPlace`, `allowBreak`, `avoidance`, `mineScanDroppedItems`.
 
 - Wurst7: Fabric client with automation modules (chat `.` commands). Repo: https://github.com/Wurst-Imperium/Wurst7
   - Use: optional helper modules like AutoEat/AutoArmor/tunneling.
   - Limits: treat as optional; gate risky features behind config.
   - See in-game `.help` for commands and modules.
+  - Capability summary and AutoMC usage: see `docs/wurst_capabilities.md`.
+  - Useful commands: `.goto`, `.excavate`, `.follow`, `.drop`, `.throw`, `.viewnbt`, `.nuker` (gated).
+
+Baritone/Wurst replacements and future usage
+- Replace custom ensure navigation with Baritone `#goto crafting_table` / `#goto furnace` before placement; retain mod-native placement if none found.
+- Use Baritone exploration and tunneling instead of custom roam/mining loops.
+- Future: leverage `rightClickContainerOnArrival` for container auto-open after `#goto <container>`.
 
 - Litematica (optional, later): schematic planning/visualization; potential for integration or printer support (if feasible via text/API).
 

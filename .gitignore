@@ -63,11 +63,7 @@ run/
 *.ear
 
 # Local tooling archives (prevent >100MB files from being committed)
-tools/*.zip
-tools/**/*.zip
-tools/**/*.tar
-tools/**/*.tar.gz
-tools/**/*.tgz
+tools/
 
 # Node (optional tooling/UI)
 node_modules/

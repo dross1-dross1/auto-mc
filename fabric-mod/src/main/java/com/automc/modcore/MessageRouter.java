@@ -31,7 +31,9 @@ public final class MessageRouter {
             String type = obj.get("type").getAsString();
             if ("chat_send".equals(type)) {
                 String text = obj.get("text").getAsString();
-                boolean sent = WebSocketClientManager.getInstance().trySendChatRateLimited(text);
+                // Do not broadcast unrecognized/error replies publicly; only send commands (#/.)
+                boolean isCommand = text.startsWith("#") || text.startsWith(".");
+                boolean sent = isCommand && WebSocketClientManager.getInstance().trySendChatRateLimited(text);
                 LOGGER.info("chat_send -> {} (sent={})", text, sent);
                 return;
             }
