@@ -19,6 +19,14 @@ dependencies {
 
     include(implementation("org.java-websocket:Java-WebSocket:1.5.6"))
     include(implementation("com.google.code.gson:gson:2.10.1"))
+
+    // Test dependencies (JUnit 5 + Mockito with static mocking support)
+    testImplementation("org.junit.jupiter:junit-jupiter-api:5.11.0")
+    testImplementation("org.junit.jupiter:junit-jupiter-params:5.11.0")
+    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.11.0")
+    testImplementation("org.mockito:mockito-core:5.14.2")
+    testImplementation("org.mockito:mockito-junit-jupiter:5.14.2")
+    testImplementation("org.mockito:mockito-inline:5.2.0")
 }
 
 java {
@@ -46,6 +54,11 @@ tasks.processResources {
     filesMatching('fabric.mod.json') {
         expand(props)
     }
+}
+
+// Enable JUnit Platform for tests
+tasks.test {
+    useJUnitPlatform()
 }
 
 

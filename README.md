@@ -42,25 +42,19 @@ IDLE_SHUTDOWN_SECONDS=0
 Mod config `autominecraft.json` (in the game’s config folder):
 ```json
 {
-  "backend_url": "ws://127.0.0.1:8765",
-  "player_id": "player-1",
-  "telemetry_interval_ms": 1000,
-  "chat_bridge_enabled": true,
-  "chat_bridge_rate_limit_per_sec": 2,
-  "inventory_snapshot_debounce_ms": 250,
-  "inventory_snapshot_max_payload_kb": 64,
-  "auth_token": null,
-  "rate_limit_chat_sends_per_sec": 5,
-  "settings_overrides": { "baritone": {}, "wurst": {} }
+  "backendUrl": "ws://127.0.0.1:8765",
+  "playerId": "player-1",
+  "telemetryIntervalMs": 1000,
+  "chatBridgeEnabled": true,
+  "chatBridgeRateLimitPerSec": 2
 }
 ```
 
 ## Build the Fabric mod (JAR)
 Windows (PowerShell):
 ```powershell
-cd fabric-mod
-.\gradlew.bat --no-daemon clean build
-# Output: .\build\libs\autominecraft-0.1.0.jar
+./build_mod.ps1
+# Output: .\fabric-mod\build\libs\autominecraft-0.1.0.jar
 ```
 macOS/Linux:
 ```bash
@@ -76,15 +70,48 @@ cd fabric-mod
   - Windows (PowerShell): `.\gradlew.bat wrapper`
   - macOS/Linux: `./gradlew wrapper`
 
-## Getting started
-1) Start the backend
-- Create and fill a `.env` using the example in Configuration. Then install deps and run the server.
+### Gradle wrapper recovery (if gradle-wrapper.jar is missing)
+If you see `Unable to access jarfile .../gradle-wrapper.jar`, regenerate the wrapper using a one-time local Gradle install (no admin required), then use the wrapper normally.
+
+Windows (PowerShell):
+```powershell
+$base = "$env:USERPROFILE\tools\gradle"
+New-Item -ItemType Directory -Force -Path $base | Out-Null
+$zip  = "$base\gradle-8.14-bin.zip"
+$url  = "https://services.gradle.org/distributions/gradle-8.14-bin.zip"
+Invoke-WebRequest -Uri $url -OutFile $zip
+Expand-Archive -Path $zip -DestinationPath $base -Force
+cd fabric-mod
+& "$env:USERPROFILE\tools\gradle\gradle-8.14\bin\gradle.bat" wrapper
+```
+macOS/Linux:
+```bash
+mkdir -p "$HOME/tools/gradle"
+cd "$HOME/tools/gradle"
+curl -LO https://services.gradle.org/distributions/gradle-8.14-bin.zip
+unzip -o gradle-8.14-bin.zip
+cd -
+cd fabric-mod
+"$HOME/tools/gradle/gradle-8.14/bin/gradle" wrapper
+```
+After this, build with the wrapper:
+- Windows: `.\gradlew.bat --no-daemon clean build`
+- macOS/Linux: `./gradlew --no-daemon clean build`
+
+## Getting started (after cloning)
+
+0) Prerequisites
+- JDK 21 on PATH
+- Python 3.10+ on PATH
+
+1) Backend: setup and run
+- Create `.env` using the example in Configuration (or rely on defaults).
 
 Windows (PowerShell):
 ```powershell
 python -m venv .venv
-.\.venv\Scripts\pip install -r backend/requirements.txt
-.\.venv\Scripts\python -m backend
+./.venv/Scripts/python -m pip install -r backend/requirements.txt
+./run_backend.ps1
 ```
 macOS/Linux:
 ```bash
@@ -95,20 +122,76 @@ python -m backend
 ```
 - Watch logs for: "listening on HOST:PORT".
 
-2) Start Minecraft with Fabric + Baritone + Wurst + this mod
-- Copy the built JAR from `fabric-mod/build/libs/autominecraft-0.1.0.jar` into your Minecraft `mods` folder.
-- Confirm the mod connects and telemetry starts.
+2) Smoke test backend (optional)
+```powershell
+.\.venv\Scripts\python tests\integration_backend.py
+```
+Expected: `PASSED 7/7`.
 
-3) Try small things
-- Type `!echo hello` and see a reply. Trigger a simple navigation via `#goto` from the backend.
+3) Build the mod (JAR)
+- Preferred: `./build_mod.ps1`.
+- Or: `cd fabric-mod` then run the wrapper (`gradlew`/`./gradlew`). If the wrapper JAR is missing, follow Tooling → Gradle wrapper recovery.
 
-4) Try a real goal
-- Type `!craft 1 iron pickaxe`. Planner bootstraps tools (wood → stone → iron). Chat-bridge actions are spaced and rate-limited; you should see Baritone `#mine` commands. Craft/smelt are placeholders until mod-native is added.
+4) Install and run in Minecraft
+- Copy the built JAR from `fabric-mod/build/libs/autominecraft-0.1.0.jar` into your Minecraft `mods` folder alongside Fabric Loader/API, Baritone, Wurst for `1.21.8`.
+- First run creates `config/autominecraft.json`. Ensure `backendUrl` points to your backend.
+- Try `!echo hello` and `!craft 1 iron pickaxe`.
 
 Tips
 - Baritone in-game help: `#help`; Repo: https://github.com/cabaletta/baritone (usage.md).
 - Wurst in-game help: `.help`; Repo: https://github.com/Wurst-Imperium/Wurst7.
 - Planner inspiration: Plan4MC https://github.com/PKU-RL/Plan4MC.
+
+## Testing workflow
+
+When to use tests vs. manual Minecraft:
+- Use automated tests when changing logic that does not require a live world: parsing (`backend/intents.py`), planning (`backend/planner.py`), dispatch formatting (`backend/dispatcher.py`), config/state handling, and message routing in the mod (`MessageRouter`).
+- Use manual testing when behavior depends on the live client or world state: UI interactions, block placement, hotbar selection, Baritone pathing outcomes, inventory UIs, or timing-sensitive actions.
+
+Unit tests (fast, local):
+- Python backend (run from repo root):
+  - Preferred: `./run_tests.ps1` (runs Java then Python tests)
+  - Or: `python -m unittest discover -s tests -p test_*.py -q`
+  - Covers: intents parsing, planner expansion/gating/order, dispatcher mappings and skip-by-inventory, state persistence/selection, env config parsing.
+- Java (Fabric mod logic):
+  - Windows (PowerShell): `./run_tests.ps1`
+  - macOS/Linux: `cd fabric-mod; ./gradlew --no-daemon test`
+  - Covers: `MessageRouter` chat_send filtering and action_request routing/progress.
+
+Integration tests (backend only, optional):
+- `python tests/integration_backend.py` starts a client WS and exercises handshake, telemetry persistence, command → plan, and basic action_request flow.
+
+Continuous integration (recommended):
+- Configure CI to run both: backend unit tests and `fabric-mod` Gradle tests on every PR. Fail the build on test failures.
+
+Guidelines:
+- Keep tests deterministic and environment-free; mock external effects where needed.
+- Prefer testing message shapes, ordering, and invariants over implementation details.
+
+## Developer workflow
+
+Daily loop:
+1) Write or modify backend/mod code for a small change.
+2) Add/adjust unit tests that capture expected behavior.
+3) Run fast tests locally:
+   - Backend: `python -m unittest discover -s tests -p test_*.py -q`
+   - Mod: `cd fabric-mod; (./gradlew|.\\gradlew.bat) --no-daemon test`
+4) If the change affects live interactions (crafting UI, placement, Baritone pathing), build the mod and verify in-game.
+5) Commit with clear message; open PR; let CI run both suites.
+
+When to prefer automated tests:
+- Text/JSON in, text/JSON out logic (parsers, planners, routers, dispatchers).
+- Pure calculations, ordering, gating rules, and coalescing/deduping logic.
+
+When manual testing is required:
+- Minecraft-specific APIs (UI open/interactions, block placement/use, world scans) and timing on the MC thread.
+- Baritone/Wurst behavior differences across worlds/servers.
+
+Commands recap:
+- All tests (Windows): `./run_tests.ps1`
+- Backend unit tests: `python -m unittest discover -s tests -p test_*.py -q`
+- Java tests: `cd fabric-mod; (./gradlew|.\\gradlew.bat) --no-daemon test`
+- Backend integration check: `python tests/integration_backend.py`
 
 ## Security and observability
 - Sanitize/escape outbound chat; never echo arbitrary backend input to public chat.

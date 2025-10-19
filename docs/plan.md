@@ -469,7 +469,7 @@ No secrets in the repo.
 
 1) Start the backend
 - Load `.env`.
-- Run the WebSocket server.
+- Run the WebSocket server: on Windows use `./run_backend.ps1`; on macOS/Linux `python -m backend` (after venv + requirements install).
 - Watch logs for: "listening on HOST:PORT".
 
 2) Start Minecraft with Fabric + Baritone + Wurst + this mod
@@ -553,6 +553,7 @@ Repository layout (proposed)
 - `docs/` (design and diagrams)
 - `data/` (runtime state; gitignored)
 - `README.md`
+- Root helper scripts (Windows): `build_mod.ps1`, `run_backend.ps1`, `run_tests.ps1`
 
 ## Troubleshooting (plain fixes)
 

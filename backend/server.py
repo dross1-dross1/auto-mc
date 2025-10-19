@@ -178,9 +178,9 @@ class BackendServer:
                 "steps": steps,
             }
             await self._send_json(session.websocket, plan)
-            # stream actions
+            # stream actions in the background to keep the receive loop responsive
             dispatcher = Dispatcher(session.websocket, player_id=session.player_id, state_service=self.state)
-            await dispatcher.run_linear(steps)
+            asyncio.create_task(dispatcher.run_linear(steps))
             return
 
         # Fallback: acknowledge with a polite note
