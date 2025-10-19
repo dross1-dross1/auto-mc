@@ -69,6 +69,13 @@ cd fabric-mod
 # Output: ./build/libs/autominecraft-0.1.0.jar
 ```
 
+## Tooling (Gradle wrapper)
+- The `tools/` directory is gitignored and should not be committed.
+- Use the Gradle Wrapper in `fabric-mod/` (`gradlew.bat` on Windows, `./gradlew` on macOS/Linux). The build commands above already use the wrapper; no separate Gradle install is required.
+- If you ever need to refresh wrapper files, run from `fabric-mod/`:
+  - Windows (PowerShell): `.\gradlew.bat wrapper`
+  - macOS/Linux: `./gradlew wrapper`
+
 ## Getting started
 1) Start the backend
 - Create and fill a `.env` using the example in Configuration. Then install deps and run the server.
@@ -113,6 +120,7 @@ Tips
 - `backend/` (Python project)
 - `docs/` (design and diagrams)
 - `data/` (runtime state; gitignored)
+ - `tools/` (local tooling; gitignored)
 
 ## Contributing
 Small, reliable changes over big bang features. Use clear commits and keep configs out of code.
