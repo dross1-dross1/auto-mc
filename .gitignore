@@ -62,6 +62,13 @@ run/
 *.war
 *.ear
 
+# Local tooling archives (prevent >100MB files from being committed)
+tools/*.zip
+tools/**/*.zip
+tools/**/*.tar
+tools/**/*.tar.gz
+tools/**/*.tgz
+
 # Node (optional tooling/UI)
 node_modules/
 npm-debug.log*
