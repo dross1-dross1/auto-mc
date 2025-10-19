@@ -3,7 +3,6 @@ package com.automc.modcore;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.text.Text;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -22,6 +21,33 @@ public final class MessageRouter {
                 String text = obj.get("text").getAsString();
                 sendChat(text);
                 LOGGER.info("chat_send -> {}", text);
+                return;
+            }
+            if ("action_request".equals(type)) {
+                String mode = obj.has("mode") ? obj.get("mode").getAsString() : "";
+                if ("chat_bridge".equals(mode)) {
+                    String chatText = obj.has("chat_text") ? obj.get("chat_text").getAsString() : "";
+                    if (!chatText.isEmpty()) {
+                        // Do not schedule chat sends on WebSocket read thread; push to client thread
+                        boolean[] sentBox = new boolean[]{false};
+                        net.minecraft.client.MinecraftClient.getInstance().execute(() -> {
+                            sentBox[0] = WebSocketClientManager.getInstance().trySendChatRateLimited(chatText);
+                        });
+                        boolean sent = sentBox[0];
+                        LOGGER.info("chat_bridge exec -> {} (sent={})", chatText, sent);
+                        // send progress_update ok
+                        com.google.gson.JsonObject progress = new com.google.gson.JsonObject();
+                        progress.addProperty("type", "progress_update");
+                        progress.addProperty("action_id", obj.get("action_id").getAsString());
+                        progress.addProperty("status", sent ? "ok" : "skipped");
+                        WebSocketClientManager.getInstance().sendJson(progress);
+                    }
+                    return;
+                }
+                String actionId = obj.has("action_id") ? obj.get("action_id").getAsString() : "";
+                String op = obj.has("op") ? obj.get("op").getAsString() : "";
+                String chatText = obj.has("chat_text") ? obj.get("chat_text").getAsString() : "";
+                LOGGER.info("action_request: id={} mode={} op={} chat_text={}", actionId, mode, op, chatText);
                 return;
             }
             if ("plan".equals(type)) {
@@ -49,5 +75,3 @@ public final class MessageRouter {
         mc.execute(() -> mc.player.networkHandler.sendChatMessage(text));
     }
 }
-
-

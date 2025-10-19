@@ -11,9 +11,8 @@ public class AutoMinecraftClient implements ClientModInitializer {
     public void onInitializeClient() {
         LOGGER.info("AutoMinecraft client initializing");
         ModConfig config = ModConfig.load();
+        MessagePump.register();
         WebSocketClientManager.getInstance().start(config);
         ChatInterceptor.register();
     }
 }
-
-

@@ -25,6 +25,8 @@ class Settings:
     default_retry_attempts: int
     default_retry_backoff_ms: int
     default_action_timeout_ms: int
+    default_action_spacing_ms: int
+    idle_shutdown_seconds: int
 
 
 def _get_bool(name: str, default: bool) -> bool:
@@ -53,6 +55,8 @@ def load_settings() -> Settings:
         default_retry_attempts=int(os.getenv("DEFAULT_RETRY_ATTEMPTS", "3")),
         default_retry_backoff_ms=int(os.getenv("DEFAULT_RETRY_BACKOFF_MS", "500")),
         default_action_timeout_ms=int(os.getenv("DEFAULT_ACTION_TIMEOUT_MS", "30000")),
+        default_action_spacing_ms=int(os.getenv("DEFAULT_ACTION_SPACING_MS", "200")),
+        idle_shutdown_seconds=int(os.getenv("IDLE_SHUTDOWN_SECONDS", "0")),
     )
     return settings
 

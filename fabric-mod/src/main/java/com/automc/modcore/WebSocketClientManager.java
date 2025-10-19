@@ -10,6 +10,8 @@ import org.java_websocket.handshake.ServerHandshake;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public final class WebSocketClientManager {
     private static final Logger LOGGER = LogManager.getLogger("AutoMinecraft.WS");
@@ -18,6 +20,12 @@ public final class WebSocketClientManager {
 
     private WebSocketClient client;
     private ModConfig config;
+    private long lastChatSendMillis = 0L;
+    private final ExecutorService sendExec = Executors.newSingleThreadExecutor(r -> {
+        Thread t = new Thread(r, "AutoMC-WS-Send");
+        t.setDaemon(true);
+        return t;
+    });
 
     private WebSocketClientManager() {}
 
@@ -36,10 +44,11 @@ public final class WebSocketClientManager {
                     handshake.addProperty("seq", 1);
                     handshake.addProperty("player_id", config.playerId);
                     handshake.addProperty("client_version", "mod/0.1.0");
-                    send(GSON.toJson(handshake).getBytes(StandardCharsets.UTF_8));
+                    enqueueSend(GSON.toJson(handshake));
                 }
                 @Override public void onMessage(String message) {
-                    MessageRouter.onMessage(message);
+                    // Pump into a queue to be processed on client tick, not IO thread
+                    MessagePump.enqueue(message);
                 }
                 @Override public void onClose(int code, String reason, boolean remote) {
                     LOGGER.info("WS closed: {} {} remote={} ", code, reason, remote);
@@ -54,11 +63,30 @@ public final class WebSocketClientManager {
         }
     }
 
-    public void sendJson(JsonObject obj) {
-        if (client != null && client.isOpen()) {
-            client.send(GSON.toJson(obj));
+    public void sendJson(JsonObject obj) { enqueueSend(GSON.toJson(obj)); }
+
+    private void enqueueSend(String text) {
+        if (client == null) return;
+        sendExec.submit(() -> {
+            try {
+                if (client.isOpen()) {
+                    client.send(text);
+                }
+            } catch (Exception e) {
+                LOGGER.warn("WS send failed: {}", e.toString());
+            }
+        });
+    }
+
+    public boolean trySendChatRateLimited(String text) {
+        if (!config.chatBridgeEnabled) return false;
+        long now = System.currentTimeMillis();
+        long minIntervalMs = (config.chatBridgeRateLimitPerSec <= 0) ? 0 : (1000L / config.chatBridgeRateLimitPerSec);
+        if (minIntervalMs > 0 && (now - lastChatSendMillis) < minIntervalMs) {
+            return false;
         }
+        lastChatSendMillis = now;
+        MinecraftChat.send(text);
+        return true;
     }
 }
-
-

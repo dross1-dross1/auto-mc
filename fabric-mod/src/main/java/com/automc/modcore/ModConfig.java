@@ -20,12 +20,14 @@ public final class ModConfig {
     public final String playerId;
     public final int telemetryIntervalMs;
     public final boolean chatBridgeEnabled;
+    public final int chatBridgeRateLimitPerSec;
 
-    private ModConfig(String backendUrl, String playerId, int telemetryIntervalMs, boolean chatBridgeEnabled) {
+    private ModConfig(String backendUrl, String playerId, int telemetryIntervalMs, boolean chatBridgeEnabled, int chatBridgeRateLimitPerSec) {
         this.backendUrl = backendUrl;
         this.playerId = playerId;
         this.telemetryIntervalMs = telemetryIntervalMs;
         this.chatBridgeEnabled = chatBridgeEnabled;
+        this.chatBridgeRateLimitPerSec = chatBridgeRateLimitPerSec;
     }
 
     public static ModConfig load() {
@@ -34,7 +36,7 @@ public final class ModConfig {
         try {
             if (Files.notExists(path)) {
                 Files.createDirectories(configDir);
-                ModConfig def = new ModConfig("ws://127.0.0.1:8765", "player-1", 1000, true);
+                ModConfig def = new ModConfig("ws://127.0.0.1:8765", "player-1", 1000, true, 2);
                 try (BufferedWriter w = Files.newBufferedWriter(path, StandardCharsets.UTF_8)) {
                     GSON.toJson(def, w);
                 }
@@ -46,9 +48,7 @@ public final class ModConfig {
             }
         } catch (IOException e) {
             LOGGER.warn("failed to load config, using defaults: {}", e.toString());
-            return new ModConfig("ws://127.0.0.1:8765", "player-1", 1000, true);
+            return new ModConfig("ws://127.0.0.1:8765", "player-1", 1000, true, 2);
         }
     }
 }
-
-

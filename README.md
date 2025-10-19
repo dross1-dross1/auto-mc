@@ -51,16 +51,41 @@ Mod config `autominecraft.json` (in the game’s config folder):
 }
 ```
 
+## Build the Fabric mod (JAR)
+Windows (PowerShell):
+```powershell
+cd fabric-mod
+.\gradlew.bat --no-daemon clean build
+# Output: .\build\libs\autominecraft-0.1.0.jar
+```
+macOS/Linux:
+```bash
+cd fabric-mod
+./gradlew --no-daemon clean build
+# Output: ./build/libs/autominecraft-0.1.0.jar
+```
+
 ## Getting started
 1) Start the backend
-- Create and fill a `.env` using the example in Configuration. Then install deps and run the server:
+- Create and fill a `.env` using the example in Configuration. Then install deps and run the server.
+
+Windows (PowerShell):
+```powershell
+python -m venv .venv
+.\.venv\Scripts\pip install -r backend/requirements.txt
+.\.venv\Scripts\python -m backend
+```
+macOS/Linux:
 ```bash
-python -m venv .venv && .venv\Scripts\pip install -r backend/requirements.txt
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r backend/requirements.txt
 python -m backend
 ```
 - Watch logs for: "listening on HOST:PORT".
 
 2) Start Minecraft with Fabric + Baritone + Wurst + this mod
+- Copy the built JAR from `fabric-mod/build/libs/autominecraft-0.1.0.jar` into your Minecraft `mods` folder.
 - Confirm the mod connects and telemetry starts.
 
 3) Try small things

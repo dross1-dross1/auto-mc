@@ -1,15 +1,9 @@
 package com.automc.modcore;
 
 import com.google.gson.JsonObject;
-import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
-import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
 import net.fabricmc.fabric.api.client.message.v1.ClientSendMessageEvents;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 public final class ChatInterceptor {
-    private static final Logger LOGGER = LogManager.getLogger("AutoMinecraft.Chat");
-
     private ChatInterceptor() {}
 
     public static void register() {
@@ -28,5 +22,3 @@ public final class ChatInterceptor {
         });
     }
 }
-
-

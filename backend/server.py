@@ -33,6 +33,7 @@ class BackendServer:
         self.settings = load_settings()
         self.sessions: Dict[WebSocketServerProtocol, Session] = {}
         self._shutdown_event = asyncio.Event()
+        self._idle_task: Optional[asyncio.Task] = None
         self.state = StateService(Path("data/state.json"))
         self.state.load()
 
@@ -44,7 +45,18 @@ class BackendServer:
         logger.info("listening on %s:%s", host, port)
 
         async with serve(self._handle_client, host, port):
-            await self._shutdown_event.wait()
+            # Start idle watchdog if enabled
+            if self.settings.idle_shutdown_seconds > 0:
+                self._idle_task = asyncio.create_task(self._idle_watchdog())
+            try:
+                await self._shutdown_event.wait()
+            finally:
+                if self._idle_task is not None:
+                    self._idle_task.cancel()
+                    try:
+                        await self._idle_task
+                    except asyncio.CancelledError:
+                        pass
 
     async def stop(self) -> None:
         self._shutdown_event.set()
@@ -96,6 +108,34 @@ class BackendServer:
             logger.info("client disconnected: %s", client)
         finally:
             self.sessions.pop(websocket, None)
+
+    async def _idle_watchdog(self) -> None:
+        """Shut the server down if there are no connected clients for a configured duration.
+
+        This is a best-effort idle shutdown to avoid orphaning the port in development.
+        """
+        assert self.settings.idle_shutdown_seconds >= 0
+        timeout_s = self.settings.idle_shutdown_seconds
+        if timeout_s == 0:
+            return
+        no_client_since: Optional[float] = None
+        try:
+            while True:
+                await asyncio.sleep(1)
+                has_clients = bool(self.sessions)
+                now = asyncio.get_event_loop().time()
+                if has_clients:
+                    no_client_since = None
+                    continue
+                if no_client_since is None:
+                    no_client_since = now
+                    continue
+                if now - no_client_since >= timeout_s:
+                    logger.info("idle timeout (%ss) reached with no clients; shutting down", timeout_s)
+                    await self.stop()
+                    return
+        except asyncio.CancelledError:
+            return
 
     async def _on_command(self, session: Session, msg: dict) -> None:
         text: str = msg.get("text", "")
