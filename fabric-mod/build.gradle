@@ -1,0 +1,51 @@
+plugins {
+    id 'fabric-loom' version '1.6-SNAPSHOT'
+    id 'maven-publish'
+}
+
+group = 'com.automc'
+version = '0.1.0'
+
+repositories {
+    mavenCentral()
+    maven { url = 'https://maven.fabricmc.net/' }
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:${minecraft_version}"
+    mappings loom.officialMojangMappings()
+    modImplementation "net.fabricmc:fabric-loader:${loader_version}"
+    modImplementation "net.fabricmc.fabric-api:fabric-api:${fabric_api_version}"
+
+    include(implementation("org.java-websocket:Java-WebSocket:1.5.6"))
+    include(implementation("com.google.code.gson:gson:2.10.1"))
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+    withSourcesJar()
+}
+
+tasks.withType(JavaCompile).configureEach {
+    it.options.encoding = 'UTF-8'
+    it.options.release.set(21)
+}
+
+tasks.processResources {
+    def props = [
+            mod_id         : project.findProperty('mod_id'),
+            mod_version    : project.findProperty('mod_version'),
+            mod_name       : project.findProperty('mod_name'),
+            mod_desc       : project.findProperty('mod_desc'),
+            mod_author     : project.findProperty('mod_author'),
+            minecraft_version: project.findProperty('minecraft_version'),
+    ]
+    inputs.properties(props)
+    filesMatching('fabric.mod.json') {
+        expand(props)
+    }
+}
+
+

@@ -19,6 +19,10 @@ data/
 .idea/
 .vscode/
 
+# Gradle
+fabric-mod/.gradle/
+fabric-mod/build/
+
 # OS / Editor
 .DS_Store
 Thumbs.db

@@ -6,6 +6,7 @@ import logging
 import signal
 import uuid
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Dict, Optional
 
 import websockets
@@ -15,6 +16,7 @@ from .config import configure_logging, load_settings
 from .intents import parse_command_text
 from .planner import plan_craft
 from .dispatcher import Dispatcher
+from .state_service import StateService
 
 
 logger = logging.getLogger("automc.server")
@@ -31,6 +33,8 @@ class BackendServer:
         self.settings = load_settings()
         self.sessions: Dict[WebSocketServerProtocol, Session] = {}
         self._shutdown_event = asyncio.Event()
+        self.state = StateService(Path("data/state.json"))
+        self.state.load()
 
     async def start(self) -> None:
         configure_logging(self.settings.log_level)
@@ -72,6 +76,10 @@ class BackendServer:
 
                 if mtype == "telemetry_update":
                     await self._on_telemetry(session, msg)
+                    continue
+
+                if mtype == "state_request":
+                    await self._on_state_request(session, msg)
                     continue
 
                 if mtype == "progress_update":
@@ -132,8 +140,23 @@ class BackendServer:
 
     async def _on_telemetry(self, session: Session, msg: dict) -> None:
         player_id = session.player_id or "unknown"
-        # In a future step, persist/update last telemetry per agent
-        logger.debug("telemetry_update from %s: %s", player_id, msg.get("state", {}) )
+        logger.debug("telemetry_update from %s: %s", player_id, msg.get("state", {}))
+        await self.state.update_telemetry(player_id, str(msg.get("ts", "")), msg.get("state", {}))
+
+    async def _on_state_request(self, session: Session, msg: dict) -> None:
+        req_id: str = msg.get("request_id", str(uuid.uuid4()))
+        target_player: str = msg.get("player_id") or (session.player_id or "unknown")
+        selector = msg.get("selector")
+        player_state = self.state.get_player_state(target_player)
+        payload = {}
+        if player_state is not None:
+            payload = self.state.select_state(player_state, selector)
+        await self._send_json(session.websocket, {
+            "type": "state_response",
+            "request_id": req_id,
+            "player_id": target_player,
+            "state": payload,
+        })
 
     async def _on_progress(self, session: Session, msg: dict) -> None:
         player_id = session.player_id or "unknown"
