@@ -12,15 +12,15 @@ if (Test-Path -LiteralPath $gradlew) {
     Write-Warning 'gradlew.bat not found; skipping Java tests. See README for wrapper recovery.'
 }
 
-# 2) Python tests
+# 2) Python tests (backend/test)
 $venvPython = Join-Path $PSScriptRoot '.venv\Scripts\python.exe'
 if (Test-Path -LiteralPath $venvPython) {
-    & $venvPython -m unittest discover -s tests -p test_*.py -q
+    & $venvPython -m unittest discover -s backend/test -p test_*.py -q
     exit $LASTEXITCODE
 }
 
 # Fallback to system Python
-& python -m unittest discover -s tests -p test_*.py -q
+& python -m unittest discover -s backend/test -p test_*.py -q
 exit $LASTEXITCODE
 
 

@@ -151,7 +151,7 @@ When to use tests vs. manual Minecraft:
 Unit tests (fast, local):
 - Python backend (run from repo root):
   - Preferred: `./run_tests.ps1` (runs Java then Python tests)
-  - Or: `python -m unittest discover -s tests -p test_*.py -q`
+  - Or: `python -m unittest discover -s backend/test -p test_*.py -q`
   - Covers: intents parsing, planner expansion/gating/order, dispatcher mappings and skip-by-inventory, state persistence/selection, env config parsing.
 - Java (Fabric mod logic):
   - Windows (PowerShell): `./run_tests.ps1`
@@ -189,7 +189,7 @@ When manual testing is required:
 
 Commands recap:
 - All tests (Windows): `./run_tests.ps1`
-- Backend unit tests: `python -m unittest discover -s tests -p test_*.py -q`
+- Backend unit tests: `python -m unittest discover -s backend/test -p test_*.py -q`
 - Java tests: `cd fabric-mod; (./gradlew|.\\gradlew.bat) --no-daemon test`
 - Backend integration check: `python tests/integration_backend.py`
 

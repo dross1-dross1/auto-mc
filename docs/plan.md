@@ -487,6 +487,9 @@ Optional: Backend UI
 - Type: `!craft 1 iron pickaxe`.
 - Watch the planner emit steps and the mod execute them.
 
+Developer testing helpers (Windows):
+- `./run_tests.ps1` runs Java and Python tests (`backend/test`).
+
 ---
 
 ## External integrations (context)
