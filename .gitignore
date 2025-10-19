@@ -1,3 +1,24 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+build/
+dist/
+*.egg-info/
+
+# Data/runtime
+data/
+.env
+
+# Editors
+.idea/
+.vscode/
+
 # OS / Editor
 .DS_Store
 Thumbs.db

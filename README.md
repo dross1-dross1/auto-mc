@@ -53,7 +53,12 @@ Mod config `autominecraft.json` (in the game’s config folder):
 
 ## Getting started
 1) Start the backend
-- Load `.env` and run the WebSocket server. Watch logs for: "listening on HOST:PORT".
+- Create and fill a `.env` using the example in Configuration. Then install deps and run the server:
+```bash
+python -m venv .venv && .venv\Scripts\pip install -r backend/requirements.txt
+python -m backend
+```
+- Watch logs for: "listening on HOST:PORT".
 
 2) Start Minecraft with Fabric + Baritone + Wurst + this mod
 - Confirm the mod connects and telemetry starts.
