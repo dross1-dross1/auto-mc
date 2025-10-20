@@ -33,13 +33,14 @@ def parse_command_text(text: str) -> Optional[Dict[str, object]]:
     if m:
         count = int(m.group(1))
         item_words = m.group(2).strip().lower().replace(" ", "_")
-        # Naive normalization of common items
+        # Normalization: prefer concrete item ids matching game names
         item_map = {
             "iron_pickaxe": "minecraft:iron_pickaxe",
             "iron_pick": "minecraft:iron_pickaxe",
             "stick": "minecraft:stick",
             "sticks": "minecraft:stick",
-            "planks": "minecraft:planks",
+            "oak_planks": "minecraft:oak_planks",
+            "planks": "minecraft:oak_planks",
             "crafting_table": "minecraft:crafting_table",
             "furnace": "minecraft:furnace",
             "torch": "minecraft:torch",

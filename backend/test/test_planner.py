@@ -18,9 +18,9 @@ def find_first_index(steps: List[Dict[str, object]], pred) -> int:
 
 class TestPlanner(unittest.TestCase):
     def test_planks_yield_respected(self) -> None:
-        steps = plan_craft("minecraft:planks", 4)
-        # Expect a single craft step for planks with count 1 because recipe yields 4
-        crafts = [s for s in steps if s.get("op") == "craft" and s.get("recipe") == "minecraft:planks"]
+        steps = plan_craft("minecraft:oak_planks", 4)
+        # Expect a single craft step for oak_planks with count 1 because recipe yields 4
+        crafts = [s for s in steps if s.get("op") == "craft" and s.get("recipe") == "minecraft:oak_planks"]
         self.assertTrue(crafts, "no craft for planks")
         self.assertEqual(int(crafts[-1].get("count", 0)), 1)
 

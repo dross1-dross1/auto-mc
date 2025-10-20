@@ -24,7 +24,7 @@ public final class ChatInterceptor {
             if (message != null && prefix != null && !prefix.isEmpty() && message.startsWith(prefix)) {
                 // swallow and forward to backend as command
                 JsonObject obj = new JsonObject();
-                obj.addProperty("type", "command");
+                obj.addProperty("type", Protocol.TYPE_COMMAND);
                 obj.addProperty("request_id", java.util.UUID.randomUUID().toString());
                 obj.addProperty("text", message);
                 obj.addProperty("player_id", WebSocketClientManager.getInstance().getPlayerId());

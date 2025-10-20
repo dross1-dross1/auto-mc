@@ -167,7 +167,7 @@ Build this:
   - Consume (don’t broadcast) the message; send a JSON payload to the backend.
 - Telemetry and state
   - Heartbeat: periodically send telemetry (health, hunger, air, position/dimension, yaw/pitch, biome, time, status effects, inventory, equipment, tool durability, looking_at, selected_hotbar, xp).
-  - On-demand: handle `state_request` from the backend to return fresh state or specific slices (e.g., inventory only).
+  - On-demand: handle `state_request` from the backend and reply with `state_response` using the same snapshot builder as telemetry (supports selector slices).
   - Use Minecraft’s stats for counts (e.g., blocks mined) rather than bespoke dirt/grass trackers.
   - Shared storage catalog:
     - Listen for container open/close and slot changed events (chests, barrels, shulkers, furnaces, etc.).
@@ -175,7 +175,7 @@ Build this:
     - Deduplicate by container position + dimension; include hash/version to allow backend diffs.
 - Networking
   - Keep a single connection to the backend (WebSocket is easiest). Reconnect if it drops.
-  - Message types: `command`, `action_request`, `progress_update`, `telemetry_update`, `state_request`, `state_response`, `inventory_snapshot`, `inventory_diff`, `chat_send`, `chat_event`, `cancel`.
+  - Message types: `command`, `action_request`, `progress_update`, `telemetry_update`, `state_request`, `state_response`, `inventory_snapshot`, `inventory_diff`, `chat_send`, `chat_event`, `cancel`, `settings_update` (applied client-side at runtime).
   - Rate/spacing: backend spaces action sends (`DEFAULT_ACTION_SPACING_MS`), client rate-limits chat bridge sends.
 - Action executor
   - Chat bridge actions (send to chat):
@@ -201,14 +201,14 @@ Build this:
     - wait (ms), set_hotbar (slot)
     - collect_drops (radius), throw (item,count), sneak/sprint toggles
     - build_from_schematic (worldedit .schem via Baritone builder; Litematica optional future integration)
-  - Confirm each action with a success/fail and a short note.
+  - Confirm each action with a success/fail and a short note. v0 implements 2x2 crafting for `minecraft:planks`, `minecraft:stick`, and `minecraft:crafting_table` using client inventory interactions.
   - Dimension travel support
     - Maintain a portal registry: known Nether portals and End gateways by `(dim,pos)` with last-seen timestamp; allow backend sync.
     - When `dimension_travel` is requested: path to nearest suitable portal (Baritone `#goto`), trigger cross (approach/use), then confirm new `dim` via telemetry.
     - If no portal known and policy allows: gather resources, place obsidian and flint/steel to create portal, light, and cross; record both sides.
     - End travel: locate stronghold/end portal if allowed (long operation); optional defer until needed.
 - Persistence
-  - Save a small JSON for config (`backend_url`, telemetry interval), last active `request_id`, and minimal resume data.
+  - Save a small JSON for config (`backend_url`, telemetry interval), last active `request_id`, and minimal resume data. Runtime settings updates can adjust telemetry interval, echo policy, and chat rate limit; Baritone settings applied via `#set`.
 
 Notes:
 - Keep code small and clear. Prefer early returns. Only log what helps.
@@ -230,7 +230,7 @@ Build this:
   - Store `telemetry_update` messages as the latest known agent state.
   - Send `state_request` when a fresh snapshot is needed; expect `state_response`.
  - Inventory catalog
-  - Accept `inventory_snapshot`/`inventory_diff` from agents; index by container key `(dim,x,y,z)` and type.
+  - Accept `inventory_snapshot`/`inventory_diff` from agents; index by container key `(dim,x,y,z)` and type. Client emits snapshots on container open and diffs on slot changes.
   - Maintain a merged view across agents; last-write-wins with version/hash; debounce rapid updates.
   - Provide queries to the planner/dispatcher: find items by id/nbt across player inventories and storage.
 - Planner (deterministic first)
@@ -243,7 +243,7 @@ Build this:
  - Multi-agent
   - One controller per `player_id`; concurrent connections; shared world model with simple claims and fair scheduling.
 - Progress + resume
-  - Keep a lightweight record (e.g., a JSON file) for request status, current step, and inventory snapshot.
+  - Keep a lightweight record (e.g., a JSON file) for request status, current step, and inventory snapshot. v0 server correlates `action_id` with `{request_id, step}` for logs and basic bookkeeping.
 
 Notes:
 - Keep everything in plain functions and simple modules. Avoid frameworks.

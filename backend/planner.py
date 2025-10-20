@@ -81,4 +81,11 @@ def plan_craft(item_id: str, count: int) -> List[Dict[str, object]]:
                         break
         gated.append(s)
 
+    # If plan includes generic planks in older intents, upgrade to oak_planks
+    for s in gated:
+        if s.get("op") == "acquire" and s.get("item") == "minecraft:planks":
+            s["item"] = "minecraft:oak_planks"
+        if s.get("op") == "craft" and s.get("recipe") == "minecraft:planks":
+            s["recipe"] = "minecraft:oak_planks"
+
     return gated

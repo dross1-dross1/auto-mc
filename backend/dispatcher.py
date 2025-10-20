@@ -15,7 +15,7 @@ import asyncio
 import json
 import logging
 import uuid
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from websockets.server import WebSocketServerProtocol
 from .config import load_settings
@@ -25,11 +25,19 @@ logger = logging.getLogger("automc.dispatcher")
 
 
 class Dispatcher:
-    def __init__(self, websocket: WebSocketServerProtocol, *, player_id: Optional[str] = None, state_service: Optional[object] = None) -> None:
+    def __init__(
+        self,
+        websocket: WebSocketServerProtocol,
+        *,
+        player_id: Optional[str] = None,
+        state_service: Optional[object] = None,
+        on_action_send: Optional[Callable[[str, Dict[str, Any]], None]] = None,
+    ) -> None:
         self.websocket = websocket
         self.settings = load_settings()
         self.player_id = player_id
         self.state_service = state_service
+        self._on_action_send = on_action_send
 
     async def run_linear(self, steps: List[Dict[str, Any]]) -> None:
         spacing = max(0, int(self.settings.default_action_spacing_ms)) / 1000.0
@@ -40,6 +48,12 @@ class Dispatcher:
             if self._should_skip_step_due_to_inventory(step):
                 continue
             msg = self._to_action_request(step, action_id)
+            # Notify server about the action-id -> step mapping for bookkeeping
+            if self._on_action_send is not None:
+                try:
+                    self._on_action_send(action_id, step)
+                except Exception:
+                    pass
             # Drop consecutive duplicate chat_bridge text commands to reduce spam
             if msg.get("mode") == "chat_bridge":
                 chat_text = str(msg.get("chat_text", ""))
@@ -120,7 +134,7 @@ class Dispatcher:
             "minecraft:coal": "coal_ore",
             "minecraft:coal_ore": "coal_ore",
             "minecraft:cobblestone": "stone",
-            "minecraft:planks": "oak_log",
+            "minecraft:oak_planks": "oak_log",
             "minecraft:stick": "oak_log",
         }
         if item in item_to_target:
@@ -166,8 +180,8 @@ class Dispatcher:
             # Already have the target itself
             if bool(target) and counts.get(target, 0) >= need:
                 return True
-            # Treat logs generically for planks/sticks inputs to avoid over-mining
-            if target in {"minecraft:planks", "minecraft:stick"}:
+            # Treat logs generically for any planks variant and for sticks inputs to avoid over-mining
+            if target.endswith("_planks") or target == "minecraft:stick":
                 log_count = sum(v for k, v in counts.items() if k.startswith("minecraft:") and (k.endswith("_log") or k.endswith("_logs")))
                 if log_count > 0:
                     return True

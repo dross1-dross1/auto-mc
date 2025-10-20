@@ -23,6 +23,10 @@ class TestIntents(unittest.TestCase):
         intent = parse_command_text("!craft 4 minecraft:torch")
         self.assertEqual(intent, {"type": "craft_item", "item": "minecraft:torch", "count": 4})
 
+    def test_craft_planks_normalizes_to_oak_planks(self) -> None:
+        intent = parse_command_text("!craft 1 planks")
+        self.assertEqual(intent, {"type": "craft_item", "item": "minecraft:oak_planks", "count": 1})
+
     def test_non_command_returns_none(self) -> None:
         self.assertIsNone(parse_command_text("hello"))
 

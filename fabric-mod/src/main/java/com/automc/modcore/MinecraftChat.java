@@ -17,22 +17,34 @@ final class MinecraftChat {
     static void send(String text) {
         MinecraftClient mc = MinecraftClient.getInstance();
         if (mc == null || mc.player == null) return;
+        String safe = sanitize(text);
         mc.execute(() -> {
             try {
-                if (text != null && text.startsWith(".")) {
+                if (safe != null && safe.startsWith(".")) {
                     // Route dot-commands through ChatScreen to allow client-side mods (e.g., Wurst) to intercept
                     ChatScreen screen = new ChatScreen("");
                     mc.setScreen(screen);
                     // Best-effort: use ChatScreen API to submit the message as if typed by the user
-                    screen.sendMessage(text, true);
+                    screen.sendMessage(safe, true);
                     mc.setScreen(null);
                 } else {
-                    mc.player.networkHandler.sendChatMessage(text);
+                    mc.player.networkHandler.sendChatMessage(safe);
                 }
             } catch (Throwable t) {
                 // Fallback to direct send if UI path fails
-                mc.player.networkHandler.sendChatMessage(text);
+                mc.player.networkHandler.sendChatMessage(safe);
             }
         });
+    }
+
+    private static String sanitize(String text) {
+        if (text == null) return "";
+        String trimmed = text.replaceAll("\r|\n", " ").trim();
+        if (trimmed.length() > Protocol.MAX_CHAT_LENGTH) {
+            trimmed = trimmed.substring(0, Protocol.MAX_CHAT_LENGTH);
+        }
+        // Prevent accidental @everyone or formatting abuse; basic neutralization
+        trimmed = trimmed.replaceAll("@everyone", "@everyοne");
+        return trimmed;
     }
 }

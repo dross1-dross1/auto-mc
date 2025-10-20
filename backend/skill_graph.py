@@ -25,10 +25,25 @@ class Skill:
 
 # Minimal skill graph (Plan4MC-style) sufficient for v0 goals
 SKILLS: Dict[str, Skill] = {
-    # 2x2 crafting
-    "minecraft:planks": Skill(consume={"minecraft:oak_log": 1}, require={}, obtain={"minecraft:planks": 4}, op="craft"),
-    "minecraft:stick": Skill(consume={"minecraft:planks": 2}, require={}, obtain={"minecraft:stick": 4}, op="craft"),
-    "minecraft:crafting_table": Skill(consume={"minecraft:planks": 4}, require={}, obtain={"minecraft:crafting_table": 1}, op="craft"),
+    # 2x2 crafting (use concrete item ids to mirror game naming)
+    "minecraft:oak_planks": Skill(
+        consume={"minecraft:oak_log": 1},
+        require={},
+        obtain={"minecraft:oak_planks": 4},
+        op="craft",
+    ),
+    "minecraft:stick": Skill(
+        consume={"minecraft:oak_planks": 2},
+        require={},
+        obtain={"minecraft:stick": 4},
+        op="craft",
+    ),
+    "minecraft:crafting_table": Skill(
+        consume={"minecraft:oak_planks": 4},
+        require={},
+        obtain={"minecraft:crafting_table": 1},
+        op="craft",
+    ),
 
     # Crafting table recipes
     "minecraft:wooden_pickaxe": Skill(
@@ -52,7 +67,7 @@ SKILLS: Dict[str, Skill] = {
 
     # Smelting
     "minecraft:iron_ingot": Skill(
-        consume={"minecraft:iron_ore": 1, "minecraft:planks": 1},  # treat planks as fuel for v0
+        consume={"minecraft:iron_ore": 1, "minecraft:oak_planks": 1},  # simple fuel for v0
         require={"furnace_nearby": 1},
         obtain={"minecraft:iron_ingot": 1},
         op="smelt",

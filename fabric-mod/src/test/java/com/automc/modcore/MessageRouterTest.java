@@ -86,6 +86,45 @@ final class MessageRouterTest {
     }
 
     @Test
+    void stateRequest_sendsStateResponse_withSelectedKeys() {
+        try (MockedStatic<WebSocketClientManager> staticMock = Mockito.mockStatic(WebSocketClientManager.class)) {
+            WebSocketClientManager mgr = mock(WebSocketClientManager.class);
+            staticMock.when(WebSocketClientManager::getInstance).thenReturn(mgr);
+            when(mgr.getPlayerId()).thenReturn("p1");
+            JsonObject snapshot = new JsonObject();
+            snapshot.addProperty("foo", "bar");
+            snapshot.addProperty("other", "x");
+            when(mgr.buildStateSnapshot()).thenReturn(snapshot);
+
+            String raw = "{\"type\":\"state_request\",\"request_id\":\"r1\",\"selector\":[\"foo\"]}";
+            MessageRouter.onMessage(raw);
+
+            ArgumentCaptor<JsonObject> cap = ArgumentCaptor.forClass(JsonObject.class);
+            verify(mgr, times(1)).sendJson(cap.capture());
+            JsonObject sent = cap.getValue();
+            assertEquals("state_response", sent.get("type").getAsString());
+            assertEquals("r1", sent.get("request_id").getAsString());
+            JsonObject state = sent.getAsJsonObject("state");
+            assertEquals("bar", state.get("foo").getAsString());
+            assertFalse(state.has("other"));
+        }
+    }
+
+    @Test
+    void settingsUpdate_appliesSettingsOnClient() {
+        try (MockedStatic<WebSocketClientManager> staticMock = Mockito.mockStatic(WebSocketClientManager.class)) {
+            WebSocketClientManager mgr = mock(WebSocketClientManager.class);
+            staticMock.when(WebSocketClientManager::getInstance).thenReturn(mgr);
+
+            String raw = "{\"type\":\"settings_update\",\"settings\":{\"telemetry_interval_ms\":1500,\"rate_limit_chat\":1,\"baritone\":{\"autoTool\":\"true\"}}}";
+            MessageRouter.onMessage(raw);
+
+            ArgumentCaptor<JsonObject> cap = ArgumentCaptor.forClass(JsonObject.class);
+            verify(mgr, times(1)).applySettings(Mockito.any(JsonObject.class));
+        }
+    }
+
+    @Test
     void invalidJson_isTolerated() {
         assertDoesNotThrow(() -> MessageRouter.onMessage("{ not json }"));
     }

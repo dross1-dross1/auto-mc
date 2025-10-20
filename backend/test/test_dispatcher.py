@@ -29,7 +29,7 @@ class TestDispatcher(unittest.TestCase):
         d = Dispatcher(DummyWS())
         self.assertEqual(d._acquire_to_chat({"item": "minecraft:iron_ore"}), "#mine iron_ore")
         self.assertEqual(d._acquire_to_chat({"item": "minecraft:coal"}), "#mine coal_ore")
-        self.assertEqual(d._acquire_to_chat({"item": "minecraft:planks"}), "#mine oak_log")
+        self.assertEqual(d._acquire_to_chat({"item": "minecraft:oak_planks"}), "#mine oak_log")
         self.assertEqual(d._acquire_to_chat({"item": "minecraft:stick"}), "#mine oak_log")
 
     def test_to_action_request_ensure_context_uses_mod_native_ensure(self) -> None:

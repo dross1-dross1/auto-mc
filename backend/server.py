@@ -96,6 +96,7 @@ class BackendServer:
                 mtype = msg.get("type")
                 if mtype == "handshake":
                     pid = msg.get("player_id")
+                    pname = msg.get("player_name")
                     # Replace 'auto' with client UUID if provided later via telemetry; for now set as given
                     session.player_id = pid
                     # Admission control: ALLOW_REMOTE and AUTH_TOKEN
@@ -106,7 +107,33 @@ class BackendServer:
                             await websocket.close(code=1008, reason=reason)
                         finally:
                             return
-                    logger.info("handshake from player_id=%s", pid)
+                    # If username already known from prior runs, include it
+                    uname: Optional[str] = None
+                    try:
+                        if isinstance(pname, str) and pname:
+                            uname = pname
+                        else:
+                            ps = self.state.get_player_state(pid or "") if pid else None
+                            if ps:
+                                uname = ps.get("state", {}).get("username")
+                    except Exception:
+                        uname = None
+                    if isinstance(uname, str) and uname:
+                        logger.info("handshake from %s (%s)", pid, uname)
+                    else:
+                        logger.info("handshake from player_id=%s", pid)
+                    # Send a minimal settings_update scaffold so clients learn defaults (optional)
+                    try:
+                        await self._send_json(session.websocket, {
+                            "type": "settings_update",
+                            "settings": {
+                                "telemetry_interval_ms": max(250, self.settings.default_action_spacing_ms * 5),
+                                "rate_limit_chat": self.settings.max_chat_sends_per_sec,
+                                "echo_public_default": False,
+                            },
+                        })
+                    except Exception:
+                        pass
                     # Optional: could send settings_update later
                     continue
 
@@ -229,6 +256,7 @@ class BackendServer:
                 "!craft <count> <item> - Plan and execute crafting (v0: 2x2 crafts acknowledged, 3x3/smelt pending)\n"
                 "!echomulti <name1,name2,...> <message|#cmd|.cmd> - Send chat/command to targets\n"
                 "!echoall <message|#cmd|.cmd> - Send chat/command to all online agents\n"
+                "!settings <json> - Apply runtime settings to clients (rate limits, intervals)\n"
             )
             await self._send_json(session.websocket, {
                 "type": "chat_send",
@@ -251,7 +279,19 @@ class BackendServer:
             }
             await self._send_json(session.websocket, plan)
             # stream actions in the background to keep the receive loop responsive
-            dispatcher = Dispatcher(session.websocket, player_id=session.player_id, state_service=self.state)
+            # Track action_id -> (request_id, step) for basic progress bookkeeping
+            action_index: dict[str, dict] = {}
+            def _on_action_send(aid: str, step: dict) -> None:
+                action_index[aid] = {"request_id": request_id, "step": step}
+
+            dispatcher = Dispatcher(
+                session.websocket,
+                player_id=session.player_id,
+                state_service=self.state,
+                on_action_send=_on_action_send,
+            )
+            # Store the index on the session object for later lookups
+            setattr(session, "_action_index", action_index)
             asyncio.create_task(dispatcher.run_linear(steps))
             return
 
@@ -302,6 +342,23 @@ class BackendServer:
             })
             return
 
+        # Admin: !settings {json}
+        if text.startswith("!settings "):
+            try:
+                payload = json.loads(text[len("!settings "):].strip())
+                await self._send_json(session.websocket, {
+                    "type": "settings_update",
+                    "settings": payload,
+                })
+            except Exception:
+                await self._send_json(session.websocket, {
+                    "type": "chat_send",
+                    "request_id": request_id,
+                    "player_id": player_id,
+                    "text": "Invalid settings JSON",
+                })
+            return
+
         # Fallback: acknowledge with a polite note
         await self._send_json(session.websocket, {
             "type": "chat_send",
@@ -339,7 +396,22 @@ class BackendServer:
             msg.get("status"),
             msg.get("note"),
         )
-        # TODO: correlate with current request/step and advance; v0 just logs
+        try:
+            idx = getattr(session, "_action_index", {})
+            aid = str(msg.get("action_id"))
+            if aid and aid in idx:
+                rec = idx[aid]
+                logger.info(
+                    "request %s step %s -> %s",
+                    rec.get("request_id"),
+                    rec.get("step"),
+                    msg.get("status"),
+                )
+                # Optionally drop the entry on terminal status
+                if msg.get("status") in {"ok", "fail", "skipped", "cancelled"}:
+                    idx.pop(aid, None)
+        except Exception:
+            pass
 
     async def _multicast(self, targets: list[str], message: dict) -> None:
         # Targets can be UUIDs or usernames; resolve usernames using last telemetry

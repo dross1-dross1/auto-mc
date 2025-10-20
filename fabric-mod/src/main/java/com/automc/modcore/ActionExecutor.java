@@ -56,12 +56,7 @@ final class ActionExecutor {
     }
 
     static void sendProgress(String actionId, String status, String note) {
-        JsonObject progress = new JsonObject();
-        progress.addProperty("type", "progress_update");
-        progress.addProperty("action_id", actionId);
-        progress.addProperty("status", status);
-        if (note != null) progress.addProperty("note", note);
-        WebSocketClientManager.getInstance().sendJson(progress);
+        WebSocketClientManager.getInstance().sendJson(ClientMessages.progress(actionId, status, note));
         LOGGER.info("progress_update: id={} status={} note={}", actionId, status, note);
     }
 }

@@ -29,7 +29,7 @@ public final class MessageRouter {
             JsonObject obj = GSON.fromJson(raw, JsonObject.class);
             if (obj == null || !obj.has("type")) return;
             String type = obj.get("type").getAsString();
-            if ("chat_send".equals(type)) {
+            if (Protocol.TYPE_CHAT_SEND.equals(type)) {
                 String text = obj.get("text").getAsString();
                 boolean echoPublic = WebSocketClientManager.getInstance().getEchoPublicDefault();
                 // Do not broadcast unrecognized/error replies publicly; only send commands (#/.)
@@ -49,19 +49,14 @@ public final class MessageRouter {
                 }
                 return;
             }
-            if ("action_request".equals(type)) {
+            if (Protocol.TYPE_ACTION_REQUEST.equals(type)) {
                 String mode = obj.has("mode") ? obj.get("mode").getAsString() : "";
-                if ("chat_bridge".equals(mode)) {
+                if (Protocol.MODE_CHAT_BRIDGE.equals(mode)) {
                     String chatText = obj.has("chat_text") ? obj.get("chat_text").getAsString() : "";
                     if (!chatText.isEmpty()) {
                         boolean sent = WebSocketClientManager.getInstance().trySendChatRateLimited(chatText);
                         LOGGER.info("chat_bridge exec -> {} (sent={})", chatText, sent);
-                        // send progress_update ok
-                        com.google.gson.JsonObject progress = new com.google.gson.JsonObject();
-                        progress.addProperty("type", "progress_update");
-                        progress.addProperty("action_id", obj.get("action_id").getAsString());
-                        progress.addProperty("status", sent ? "ok" : "skipped");
-                        WebSocketClientManager.getInstance().sendJson(progress);
+                        WebSocketClientManager.getInstance().sendJson(ClientMessages.progress(obj.get("action_id").getAsString(), sent ? "ok" : "skipped", null));
                     }
                     return;
                 }
@@ -73,10 +68,36 @@ public final class MessageRouter {
                 ActionExecutor.handle(obj);
                 return;
             }
-            if ("plan".equals(type)) {
+            if (Protocol.TYPE_PLAN.equals(type)) {
                 int count = obj.has("steps") && obj.get("steps").isJsonArray() ? obj.get("steps").getAsJsonArray().size() : -1;
                 String req = obj.has("request_id") ? obj.get("request_id").getAsString() : "";
                 LOGGER.info("plan received: request_id={} steps={}", req, count);
+                return;
+            }
+            if (Protocol.TYPE_STATE_REQUEST.equals(type)) {
+                String reqId = obj.has("request_id") ? obj.get("request_id").getAsString() : java.util.UUID.randomUUID().toString();
+                com.google.gson.JsonArray selector = obj.has("selector") && obj.get("selector").isJsonArray() ? obj.getAsJsonArray("selector") : null;
+                com.google.gson.JsonObject full = WebSocketClientManager.getInstance().buildStateSnapshot();
+                com.google.gson.JsonObject selected = new com.google.gson.JsonObject();
+                if (selector != null && selector.size() > 0) {
+                    for (com.google.gson.JsonElement el : selector) {
+                        if (el != null && el.isJsonPrimitive()) {
+                            String key = el.getAsString();
+                            if (full.has(key)) {
+                                selected.add(key, full.get(key));
+                            }
+                        }
+                    }
+                }
+                com.google.gson.JsonObject state = (selector == null || selector.size() == 0) ? full : selected;
+                WebSocketClientManager.getInstance().sendJson(ClientMessages.stateResponse(reqId, WebSocketClientManager.getInstance().getPlayerId(), state));
+                return;
+            }
+            if (Protocol.TYPE_SETTINGS_UPDATE.equals(type) || Protocol.TYPE_SETTINGS_BROADCAST.equals(type)) {
+                if (obj.has("settings") && obj.get("settings").isJsonObject()) {
+                    WebSocketClientManager.getInstance().applySettings(obj.getAsJsonObject("settings"));
+                    LOGGER.info("settings applied");
+                }
                 return;
             }
         } catch (Exception e) {

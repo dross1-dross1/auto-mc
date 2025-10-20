@@ -203,12 +203,9 @@ Commands recap:
 - `backend/` (Python project)
 - `docs/` (design and diagrams)
 - `data/` (runtime state; gitignored)
- - `tools/` (local tooling; gitignored)
 
 ## Contributing
 Small, reliable changes over big bang features. Use clear commits and keep configs out of code.
 
 ## License
 See `LICENSE` for details.
-
-

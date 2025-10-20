@@ -45,6 +45,10 @@ public final class WebSocketClientManager {
         return t;
     });
     private volatile boolean telemetryRunning = false;
+    // Runtime overrides applied via settings_update
+    private volatile Integer chatRateLimitPerSecOverride = null;
+    private volatile Boolean echoPublicDefaultOverride = null;
+    private volatile Integer telemetryIntervalMsOverride = null;
 
     private WebSocketClientManager() {}
 
@@ -66,7 +70,18 @@ public final class WebSocketClientManager {
     }
 
     public boolean getEchoPublicDefault() {
+        if (this.echoPublicDefaultOverride != null) return this.echoPublicDefaultOverride.booleanValue();
         return this.config != null && this.config.echoPublicDefault;
+    }
+
+    public int getChatRateLimitPerSecEffective() {
+        if (this.chatRateLimitPerSecOverride != null) return Math.max(0, this.chatRateLimitPerSecOverride.intValue());
+        return (this.config != null) ? this.config.chatBridgeRateLimitPerSec : 0;
+    }
+
+    public int getTelemetryIntervalMsEffective() {
+        if (this.telemetryIntervalMsOverride != null) return Math.max(250, this.telemetryIntervalMsOverride.intValue());
+        return (this.config != null) ? Math.max(250, this.config.telemetryIntervalMs) : 1000;
     }
 
     public synchronized void start(ModConfig config) {
@@ -78,10 +93,16 @@ public final class WebSocketClientManager {
                 @Override public void onOpen(ServerHandshake handshakeData) {
                     LOGGER.info("WS connected {}", uri);
                     JsonObject handshake = new JsonObject();
-                    handshake.addProperty("type", "handshake");
+                    handshake.addProperty("type", Protocol.TYPE_HANDSHAKE);
                     handshake.addProperty("seq", 1);
                     handshake.addProperty("player_id", getPlayerId());
                     handshake.addProperty("client_version", "mod/0.1.0");
+                    try {
+                        net.minecraft.client.MinecraftClient mcClient = net.minecraft.client.MinecraftClient.getInstance();
+                        if (mcClient != null && mcClient.player != null) {
+                            handshake.addProperty("player_name", mcClient.player.getName().getString());
+                        }
+                    } catch (Throwable ignored) {}
                     if (config.authToken != null && !config.authToken.isEmpty()) {
                         handshake.addProperty("auth_token", config.authToken);
                     }
@@ -94,6 +115,10 @@ public final class WebSocketClientManager {
                     applyBaritoneDefaultsAsync();
                     // Start telemetry heartbeat
                     startTelemetryHeartbeat();
+                    // Send one immediate telemetry snapshot for early username adoption
+                    try {
+                        sendTelemetryOnce();
+                    } catch (Throwable ignored) {}
                 }
                 @Override public void onMessage(String message) {
                     // Pump into a queue to be processed on client tick, not IO thread
@@ -143,12 +168,8 @@ public final class WebSocketClientManager {
     }
 
     private void sendBaritoneSetting(String key, String value) {
-        JsonObject msg = new JsonObject();
-        msg.addProperty("type", "chat_send");
-        msg.addProperty("request_id", java.util.UUID.randomUUID().toString());
-        msg.addProperty("player_id", getPlayerId());
-        msg.addProperty("text", "#set " + key + " " + value);
-        sendJson(msg);
+        // Apply locally via chat; avoid bouncing through backend
+        trySendChatRateLimited("#set " + key + " " + value);
     }
 
     private void startTelemetryHeartbeat() {
@@ -157,7 +178,7 @@ public final class WebSocketClientManager {
         auxExec.submit(() -> {
             while (telemetryRunning) {
                 try {
-                    Thread.sleep(Math.max(250, config.telemetryIntervalMs));
+                    Thread.sleep(getTelemetryIntervalMsEffective());
                     sendTelemetryOnce();
                 } catch (InterruptedException ignored) {
                 } catch (Throwable t) {
@@ -170,7 +191,20 @@ public final class WebSocketClientManager {
     private void sendTelemetryOnce() {
         net.minecraft.client.MinecraftClient mc = net.minecraft.client.MinecraftClient.getInstance();
         if (mc == null || mc.player == null || mc.world == null) return;
+        JsonObject st = buildStateSnapshot();
+
+                    JsonObject msg = new JsonObject();
+                    msg.addProperty("type", Protocol.TYPE_TELEMETRY_UPDATE);
+        msg.addProperty("player_id", getPlayerId());
+        msg.addProperty("ts", java.time.Instant.now().toString());
+        msg.add("state", st);
+        sendJson(msg);
+    }
+
+    public JsonObject buildStateSnapshot() {
+        net.minecraft.client.MinecraftClient mc = net.minecraft.client.MinecraftClient.getInstance();
         JsonObject st = new JsonObject();
+        if (mc == null || mc.player == null || mc.world == null) return st;
         // Identity hints for backend to adopt UUID and username when config uses player_id=auto
         st.addProperty("uuid", mc.player.getUuidAsString());
         st.addProperty("username", mc.player.getName().getString());
@@ -197,13 +231,7 @@ public final class WebSocketClientManager {
             inv.add(slot);
         }
         st.add("inventory", inv);
-
-        JsonObject msg = new JsonObject();
-        msg.addProperty("type", "telemetry_update");
-        msg.addProperty("player_id", getPlayerId());
-        msg.addProperty("ts", java.time.Instant.now().toString());
-        msg.add("state", st);
-        sendJson(msg);
+        return st;
     }
 
     private static com.google.gson.JsonArray array3(double x, double y, double z) {
@@ -217,12 +245,39 @@ public final class WebSocketClientManager {
     public boolean trySendChatRateLimited(String text) {
         if (!config.chatBridgeEnabled) return false;
         long now = System.currentTimeMillis();
-        long minIntervalMs = (config.chatBridgeRateLimitPerSec <= 0) ? 0 : (1000L / config.chatBridgeRateLimitPerSec);
+        int rate = getChatRateLimitPerSecEffective();
+        long minIntervalMs = (rate <= 0) ? 0 : (1000L / rate);
         if (minIntervalMs > 0 && (now - lastChatSendMillis) < minIntervalMs) {
             return false;
         }
         lastChatSendMillis = now;
         MinecraftChat.send(text);
         return true;
+    }
+
+    public void applySettings(com.google.gson.JsonObject settings) {
+        if (settings == null) return;
+        try {
+            if (settings.has("telemetry_interval_ms")) {
+                this.telemetryIntervalMsOverride = Math.max(250, settings.get("telemetry_interval_ms").getAsInt());
+            }
+            if (settings.has("rate_limit_chat")) {
+                this.chatRateLimitPerSecOverride = Math.max(0, settings.get("rate_limit_chat").getAsInt());
+            }
+            if (settings.has("echo_public_default")) {
+                this.echoPublicDefaultOverride = settings.get("echo_public_default").getAsBoolean();
+            }
+            if (settings.has("baritone") && settings.get("baritone").isJsonObject()) {
+                com.google.gson.JsonObject baritone = settings.getAsJsonObject("baritone");
+                for (java.util.Map.Entry<String, com.google.gson.JsonElement> e : baritone.entrySet()) {
+                    String key = e.getKey();
+                    String value = e.getValue().isJsonPrimitive() ? e.getValue().getAsString() : e.getValue().toString();
+                    sendBaritoneSetting(key, value);
+                }
+            }
+            // Wurst settings can be handled here in the future
+        } catch (Throwable t) {
+            LOGGER.debug("applySettings error: {}", t.toString());
+        }
     }
 }

@@ -7,6 +7,8 @@ item count queries for planner/dispatcher decisions.
 """
 
 from dataclasses import dataclass
+import json
+from pathlib import Path
 from typing import Any, Dict, Tuple
 
 
@@ -20,8 +22,10 @@ class ContainerState:
 
 
 class StorageCatalog:
-    def __init__(self) -> None:
+    def __init__(self, path: Path | str = Path("data/storage_catalog.json")) -> None:
         self._by_key: Dict[ContainerKey, ContainerState] = {}
+        self._path: Path = Path(path)
+        self._load()
 
     @staticmethod
     def _key_from_snapshot(snap: Dict[str, Any]) -> ContainerKey:
@@ -47,6 +51,7 @@ class StorageCatalog:
             except Exception:
                 continue
         self._by_key[key] = ContainerState(version=version, slots=slots)
+        self._save()
 
     def handle_diff(self, player_id: str, diff: Dict[str, Any]) -> None:
         ck = diff.get("container_key", {})
@@ -88,6 +93,7 @@ class StorageCatalog:
         to_ver = diff.get("to_version")
         if isinstance(to_ver, int):
             state.version = to_ver
+        self._save()
 
     def count_item(self, item_id: str) -> int:
         total = 0
@@ -96,5 +102,41 @@ class StorageCatalog:
                 if slot.get("id") == item_id:
                     total += int(slot.get("count", 0))
         return total
+
+    def _save(self) -> None:
+        try:
+            self._path.parent.mkdir(parents=True, exist_ok=True)
+            serial: Dict[str, Any] = {}
+            for (dim, pos), st in self._by_key.items():
+                key = f"{dim}@{pos[0]},{pos[1]},{pos[2]}"
+                serial[key] = {
+                    "version": st.version,
+                    "slots": st.slots,
+                }
+            self._path.write_text(json.dumps(serial, indent=2), encoding="utf-8")
+        except Exception:
+            # best-effort persistence
+            pass
+
+    def _load(self) -> None:
+        try:
+            if not self._path.exists():
+                return
+            raw = json.loads(self._path.read_text(encoding="utf-8"))
+            out: Dict[ContainerKey, ContainerState] = {}
+            for key, data in raw.items():
+                try:
+                    dim, pos_s = key.split("@", 1)
+                    x, y, z = [int(p) for p in pos_s.split(",", 3)]
+                    version = int(data.get("version", 0))
+                    slots_in = data.get("slots", {}) or {}
+                    slots: Dict[int, Dict[str, Any]] = {int(k): v for k, v in slots_in.items()} if isinstance(slots_in, dict) else {}
+                    out[(dim, (x, y, z))] = ContainerState(version=version, slots=slots)
+                except Exception:
+                    continue
+            self._by_key = out
+        except Exception:
+            # ignore load errors
+            self._by_key = {}
 
 
