@@ -79,9 +79,13 @@ public final class WebSocketClientManager {
         return (this.config != null) ? this.config.chatBridgeRateLimitPerSec : 0;
     }
 
+    public boolean getAckOnCommandEnabled() {
+        return this.config != null && this.config.ackOnCommand;
+    }
+
     public int getTelemetryIntervalMsEffective() {
         if (this.telemetryIntervalMsOverride != null) return Math.max(250, this.telemetryIntervalMsOverride.intValue());
-        return (this.config != null) ? Math.max(250, this.config.telemetryIntervalMs) : 1000;
+        return (this.config != null) ? Math.max(250, this.config.telemetryIntervalMs) : 500;
     }
 
     public synchronized void start(ModConfig config) {
@@ -111,8 +115,7 @@ public final class WebSocketClientManager {
                     caps.addProperty("mod_native_ensure", true);
                     handshake.add("capabilities", caps);
                     enqueueSend(GSON.toJson(handshake));
-                    // Apply conservative Baritone defaults shortly after connect
-                    applyBaritoneDefaultsAsync();
+                    // Baritone/Wurst settings are applied per action via settings_update or explicit chat commands
                     // Start telemetry heartbeat
                     startTelemetryHeartbeat();
                     // Send one immediate telemetry snapshot for early username adoption
@@ -152,25 +155,8 @@ public final class WebSocketClientManager {
         });
     }
 
-    private void applyBaritoneDefaultsAsync() {
-        // Space out a few safe defaults; backend may override later via settings_update
-        auxExec.submit(() -> {
-            try {
-                Thread.sleep(250L);
-                sendBaritoneSetting("allowParkour", "false");
-                sendBaritoneSetting("allowDiagonalAscend", "false");
-                sendBaritoneSetting("assumeWalkOnWater", "false");
-                sendBaritoneSetting("freeLook", "false");
-                sendBaritoneSetting("primaryTimeoutMS", "4000");
-            } catch (InterruptedException ignored) {
-            }
-        });
-    }
-
-    private void sendBaritoneSetting(String key, String value) {
-        // Apply locally via chat; avoid bouncing through backend
-        trySendChatRateLimited("#set " + key + " " + value);
-    }
+    // Settings application happens via backend-driven messages or explicit chat commands
+    private void sendBaritoneSetting(String key, String value) { trySendChatRateLimited("#set " + key + " " + value); }
 
     private void startTelemetryHeartbeat() {
         if (telemetryRunning) return;

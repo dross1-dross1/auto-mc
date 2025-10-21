@@ -32,22 +32,22 @@ class TestDispatcher(unittest.TestCase):
         self.assertEqual(d._acquire_to_chat({"item": "minecraft:oak_planks"}), "#mine oak_log")
         self.assertEqual(d._acquire_to_chat({"item": "minecraft:stick"}), "#mine oak_log")
 
-    def test_to_action_request_ensure_context_uses_mod_native_ensure(self) -> None:
+    def test_to_action_request_ensure_context_uses_chat_bridge_goto(self) -> None:
         d = Dispatcher(DummyWS())
         msg1 = d._to_action_request({"op": "acquire", "item": "crafting_table_nearby"}, "a1")
-        self.assertEqual(msg1.get("mode"), "mod_native")
-        self.assertEqual(msg1.get("op"), "ensure")
-        self.assertEqual(msg1.get("ensure"), "crafting_table_nearby")
+        self.assertEqual(msg1.get("mode"), "chat_bridge")
+        self.assertEqual(msg1.get("op"), "acquire")
+        self.assertEqual(msg1.get("chat_text"), "#goto crafting_table")
         msg2 = d._to_action_request({"op": "acquire", "item": "furnace_nearby"}, "a2")
-        self.assertEqual(msg2.get("mode"), "mod_native")
-        self.assertEqual(msg2.get("op"), "ensure")
-        self.assertEqual(msg2.get("ensure"), "furnace_nearby")
+        self.assertEqual(msg2.get("mode"), "chat_bridge")
+        self.assertEqual(msg2.get("op"), "acquire")
+        self.assertEqual(msg2.get("chat_text"), "#goto furnace")
 
     def test_skip_step_due_to_inventory(self) -> None:
         state = DummyState({"minecraft:stick": 4, "minecraft:iron_ingot": 3})
         d = Dispatcher(DummyWS(), player_id="p1", state_service=state)
         self.assertTrue(d._should_skip_step_due_to_inventory({"op": "acquire", "item": "minecraft:stick", "count": 2}))
-        self.assertTrue(d._should_skip_step_due_to_inventory({"op": "craft", "recipe": "minecraft:iron_ingot", "count": 3}))
+        self.assertFalse(d._should_skip_step_due_to_inventory({"op": "craft", "recipe": "minecraft:iron_ingot", "count": 3}))
         self.assertFalse(d._should_skip_step_due_to_inventory({"op": "acquire", "item": "minecraft:oak_log", "count": 1}))
 
     def test_run_linear_sends_minified_json_and_dedupes_chat(self) -> None:

@@ -1,8 +1,8 @@
 # AutoMinecraft
 
-A Minecraft Java Edition project that lets you type a plain-English command in chat and have an in-game agent do the work for you. It uses a Fabric mod for in-game I/O and Baritone/Wurst for movement/building, plus a small Python service for planning and control.
+A Minecraft Java Edition project that lets you type high-level commands in chat and have an in-game agent do the work for you. It uses a Fabric mod for in-game I/O and Baritone/Wurst for movement/building, plus a small Python service for planning and control.
 
-This README is the working plan: what to build, the outcomes to hit, and how to do it.
+This file is the working plan: what to build, the outcomes to hit, and how to do it.
 
 ## Versions and compatibility
 - Minecraft Java Edition: 1.21.8+
@@ -16,28 +16,26 @@ This README is the working plan: what to build, the outcomes to hit, and how to 
 
 ## What you will have when this works
 
-- Type commands like `!craft 1 iron pickaxe` and watch the agent do it end-to-end, survival-safe.
+- Type commands like `!get minecraft:iron_pickaxe 1` and watch the agent do it end-to-end (from resource gathering to hierarchical automatic component crafting), survival-safe.
 - Multiplayer-ready: multiple agents (clients) connect to one central Python backend (can be remote) with auth.
 - Chat-bridge control for Baritone/Wurst; mod-native actions only for ensure-context and minimal UI interactions; settings can be broadcast/overridden centrally.
-- Dimension-aware tasks (portal registry, optional portal creation), coop building, and basic combat toggles enabled by config.
-- Deterministic planner first; LLM parsing deferred. State, portal registry, and shared storage catalog persist and resume.
-- Planner bootstrap: ensure tool prerequisites (e.g., craft `stone_pickaxe` before `iron_pickaxe`).
+- Deterministic planner, shared storage catalog persist, pause and resume.
+- Planner bootstrap: ensure prerequisites (e.g., craft planks from logs before crafting crafting table, or ensure raw material (diamonds for `diamond_pickaxe`) can be mined with tools the player currently has (`iron_pickaxe` or better)).
 
 ---
 
 ## How it fits together (simple flow)
 
-chat `!command` → mod sends JSON → backend parses → planner makes step list → backend streams actions → mod executes via chat bridge (Baritone/Wurst) or mod-native actions → mod emits telemetry and chat events → backend updates progress → done.
+chat `!get ...` → mod sends JSON → backend parses → planner makes step tree(graph) → backend streams actions from list → mod executes via chat bridge (Baritone/Wurst) or mod-native actions → mod emits telemetry and chat events → backend updates progress → done.
 
 ---
 
 ## Architecture (high-level)
 
 Components
-- Fabric mod: input (`!` chat), telemetry, chat bridge, minimal mod-native actions (ensure/open/interact), small persistence, shared storage catalog.
+- Fabric mod: input (`!` chat), telemetry, chat bridge, minimal mod-native actions (explicit interact/craft/smelt), small persistence, shared storage catalog.
 - Baritone/Wurst: movement/building/mining/combat via chat commands; no tight API coupling.
 - Python backend: WebSocket server, intent parsing, deterministic planner, dispatcher, per-agent state, progress/resume.
-- Optional LLM: parse natural language into your intent JSON; never plans, always validated.
 
 Data flow
 - Inbound: player types `!command` → mod sends `{type:"command"}` → backend converts to intent → planner emits plan → dispatcher sends actions.
@@ -86,7 +84,7 @@ Modules (Fabric mod)
   - WorldDiscovery: portal/gateway/waypoint detection → `world_discovery`.
 - Action Executor
   - ChatBridgeExecutor: formats Baritone/Wurst commands; rate-limits sends; parses minimal confirmations from chat echo.
-  - NativeExecutor: place/break/interact/craft/smelt/container ops/hotbar/eat/sleep/collect_drops; pre/post checks; timeouts; retries.
+  - NativeExecutor: place/break/interact/craft/smelt/container ops/hotbar/eat/sleep/collect_drops; pre/post checks; timeouts; retries. Navigation to containers is offloaded to Baritone; no client fallback for ensure-context.
   - DimensionTravel: portal registry lookup; navigate; cross; validate new dim; optional portal creation policy.
 - Portal Registry (client cache)
   - Map by (dim,pos) with target_dim and last_seen; synced from/backend via `world_discovery` merge.
@@ -108,9 +106,9 @@ Modules (Python backend)
   - Plan to actions; per-action timeout; bounded retries with backoff; pause/cancel; resume on reconnect.
   - Multi-agent scheduler (round-robin with priorities later); claims; handoffs to chests; `task_assign`.
   - Chat bridge mapping for `acquire` → Baritone commands (e.g., `#mine coal_ore`, `#mine oak_log`).
-  - Context placeholders like `crafting_table_nearby` and `furnace_nearby` are NOT mineable and must not be sent to Baritone.
-    - v0 behavior: backend converts these to `mode=mod_native, op=ensure, ensure=<placeholder>`.
-    - Client replies with `progress_update` (skipped|fail with note) until ensure-context (craft/place/use) is implemented.
+  - Context placeholders like `crafting_table_nearby` and `furnace_nearby`:
+    - Send chat `#set rightClickContainerOnArrival true`, optionally `#find <container>`, then `#goto <container>`.
+    - No client fallback; if not found/unreachable, the attempt fails loudly.
 - Settings Service
   - Broadcast `settings_update` to agents (e.g., Baritone/Wurst settings, telemetry interval, rate limits).
 - Persistence
@@ -146,7 +144,7 @@ Persistence layout (suggested)
   - settings.json
 
 Timing and reliability
-- Defaults: heartbeat 1000 ms; 3 retries; 500 ms backoff; per-action timeouts with sane caps.
+- Defaults: heartbeat 500 ms; 3 retries; 500 ms backoff; per-action timeouts with sane caps.
 - Resume: on reconnect, backend resends last pending action; agent replays last `progress_update`.
 
 Security
@@ -201,7 +199,7 @@ Build this:
     - wait (ms), set_hotbar (slot)
     - collect_drops (radius), throw (item,count), sneak/sprint toggles
     - build_from_schematic (worldedit .schem via Baritone builder; Litematica optional future integration)
-  - Confirm each action with a success/fail and a short note. v0 implements 2x2 crafting for `minecraft:planks`, `minecraft:stick`, and `minecraft:crafting_table` using client inventory interactions.
+  - Confirm each action with a success/fail and a short note. v0 implements 2x2 crafting for `minecraft:oak_planks`, `minecraft:stick`, and `minecraft:crafting_table` using client inventory interactions.
   - Dimension travel support
     - Maintain a portal registry: known Nether portals and End gateways by `(dim,pos)` with last-seen timestamp; allow backend sync.
     - When `dimension_travel` is requested: path to nearest suitable portal (Baritone `#goto`), trigger cross (approach/use), then confirm new `dim` via telemetry.
@@ -225,7 +223,7 @@ Build this:
   - Health check (simple HTTP or a ping message).
 - Command intake
   - Accept `command` messages with the original text and a fresh `request_id`.
-  - Normalize text (`!craft 1 iron pickaxe` → a small intent JSON).
+  - Normalize text (`!get iron pickaxe 1` → a small intent JSON).
  - Telemetry
   - Store `telemetry_update` messages as the latest known agent state.
   - Send `state_request` when a fresh snapshot is needed; expect `state_response`.
@@ -235,6 +233,7 @@ Build this:
   - Provide queries to the planner/dispatcher: find items by id/nbt across player inventories and storage.
 - Planner (deterministic first)
   - Given an intent like "craft 1 iron_pickaxe," expand into a concrete, ordered step list with pre/post checks.
+  - Use the current inventory snapshot to prune leaves/outputs before emitting steps (no heuristic conversions).
   - Include resource requirements (sticks, iron ingots) and where to get them (mine, smelt, craft).
   - Dimension-aware plans: if target or required resources are in another dimension, include `dimension_travel` steps via portal registry, and post-travel sanity checks (spawn safety, bed/respawn policy).
 - Dispatcher
@@ -258,7 +257,7 @@ Incoming chat → intent
 {
   "type": "command",
   "request_id": "uuid",
-  "text": "!craft 1 iron pickaxe",
+  "text": "!get iron pickaxe 1",
   "player_id": "player-1"
 }
 ```
@@ -400,7 +399,7 @@ Shared storage: delta update
 
 ### 4) Deterministic planner (what it must cover first)
 
-Outcome: From a small set of goals you care about now, produce reliable step lists without an LLM.
+Outcome: From a small set of goals you care about now, produce reliable step lists.
 
 Start with:
 - Craft graph for: sticks, planks, crafting_table, furnace, iron_ingot (smelt), torches, iron_pickaxe.
@@ -412,20 +411,12 @@ Small, correct, and boring beats clever here.
 
 Known gaps and next steps (v0):
 - Recipe ingestion: ingest vanilla JSON recipes/tags to avoid hardcoding in `backend/skill_graph.py`; generate skill nodes for craft/smelt and use tags (e.g., logs) for interchangeable inputs.
-- 2x2 vs 3x3 separation: client currently only acknowledges 2x2 `craft` ops; full 3x3 crafting and smelting via ensure-context → place → open → interact are planned.
+- 2x2 vs 3x3 separation: client currently only acknowledges 2x2 `craft` ops; full 3x3 crafting and smelting will require mod-native UI logic after ensure via Baritone navigate (`#goto`).
 - Acquire coalescing: consecutive duplicate acquires are coalesced to reduce repeated `#mine` sends; future: inventory-aware planning to skip already-satisfied items.
-- Context ensure: `crafting_table_nearby`/`furnace_nearby` mapped to `mod_native ensure`; client to implement craft/place/use and proximity checks.
+- Context ensure: `crafting_table_nearby`/`furnace_nearby` use Baritone navigation (`#goto <container>`) with auto-open enabled; fallback to mod-native placement + explicit interact when none found or unreachable.
 - Telemetry/state: client now sends heartbeats; backend pretty-prints `data/state.json`.
 
-### 5) Natural language (add later, keep it tame)
-
-Outcome: Turn loose text into your deterministic intents, not the other way around.
-
-- Use an LLM (local or remote) to parse text into your intent JSON.
-- Validate against your schema. If invalid, reply with a helpful clarification.
-- If the LLM is weird, fall back to a small set of known patterns.
-
-### 6) Multi-agent (v0)
+### 5) Multi-agent (v0)
 
 Outcome: Run two or more agents concurrently without tripping over each other, including handoffs.
 
@@ -479,12 +470,12 @@ Optional: Backend UI
 - The backend may expose a simple console or web UI to monitor agents (telemetry, plans, actions) and broadcast settings.
 
 3) Try small things first
-- Watch telemetry updates arrive automatically (interval set in config).
+- Watch telemetry updates arrive automatically (interval set in config; default 500 ms).
 - Type `!echo hello` and see a reply.
 - Trigger a simple navigation via the backend that sends `#goto x y z` and watch movement.
 
 4) Try a real goal
-- Type: `!craft 1 iron pickaxe`.
+- Type: `!get iron pickaxe 1`.
 - Watch the planner emit steps and the mod execute them.
 
 Developer testing helpers (Windows):
@@ -498,7 +489,14 @@ Developer testing helpers (Windows):
   - Use: navigation, mining, some building; settings via `#set`.
   - Limits: multi-dimension travel handled at higher layer; noisy chat output.
   - See usage (`usage.md`) and in-game `#help`.
-  - v0 defaults (sent by client after connect): `allowParkour=false`, `allowDiagonalAscend=false`, `assumeWalkOnWater=false`, `freeLook=false`, `primaryTimeoutMS=4000`.
+  - Settings are applied on-demand via chat commands; the client does not force global defaults on connect.
+
+Inventory-aware planning (v0)
+- Planner expands a dependency tree and prunes leaves/outputs using the current inventory snapshot before emitting steps (no heuristic conversions like “planks to logs”).
+- Dispatcher skips only on exact targets or clear variants (e.g., any `*_log` for logs), not by converting materials.
+
+Heartbeat & observability
+- Client telemetry heartbeat is controlled by config (`telemetry_interval_ms`), default 500 ms; the server does not override it at handshake.
   - Full capability map and AutoMC usage: see `docs/baritone_capabilities.md`.
   - Capability mapping: `#goto`, `#goal`+`#path`, `#mine <block> [count]`, `#tunnel`, `#explore`, `#wp`, `#follow`, `rightClickContainerOnArrival`.
   - Settings commonly tuned: `autoTool`, `legitMine`, `allowPlace`, `allowBreak`, `avoidance`, `mineScanDroppedItems`.
@@ -510,10 +508,10 @@ Developer testing helpers (Windows):
   - Capability summary and AutoMC usage: see `docs/wurst_capabilities.md`.
   - Useful commands: `.goto`, `.excavate`, `.follow`, `.drop`, `.throw`, `.viewnbt`, `.nuker` (gated).
 
-Baritone/Wurst replacements and future usage
-- Replace custom ensure navigation with Baritone `#goto crafting_table` / `#goto furnace` before placement; retain mod-native placement if none found.
-- Use Baritone exploration and tunneling instead of custom roam/mining loops.
-- Future: leverage `rightClickContainerOnArrival` for container auto-open after `#goto <container>`.
+Baritone/Wurst usage
+- Ensure-context: `#set rightClickContainerOnArrival true`; optional `#find <container>`; `#goto <container>`. No client fallback.
+- Exploration/mining/tunneling: prefer Baritone (`#mine`, `#explore`, `#tunnel`).
+- Settings are controlled via chat commands only (no settings_update reliance).
 
 - Litematica (optional, later): schematic planning/visualization; potential for integration or printer support (if feasible via text/API).
 
@@ -571,7 +569,7 @@ Repository layout (proposed)
 ## Scope guardrails (to keep this shippable)
 
 - Fewer features, rock-solid basics.
-- Deterministic first; LLM only after it works without it.
+- Deterministic only; explicit chat commands and schemas (no LLM).
 - Clear messages over clever abstractions.
 - Safe to run twice; don’t depend on lucky timing.
 

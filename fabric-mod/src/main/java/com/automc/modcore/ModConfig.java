@@ -38,8 +38,10 @@ public final class ModConfig {
     public final String commandPrefix;
     @SerializedName("echo_public_default")
     public final boolean echoPublicDefault;
+    @SerializedName("ack_on_command")
+    public final boolean ackOnCommand;
 
-    private ModConfig(String backendUrl, int telemetryIntervalMs, boolean chatBridgeEnabled, int chatBridgeRateLimitPerSec, String authToken, String commandPrefix, boolean echoPublicDefault) {
+    private ModConfig(String backendUrl, int telemetryIntervalMs, boolean chatBridgeEnabled, int chatBridgeRateLimitPerSec, String authToken, String commandPrefix, boolean echoPublicDefault, boolean ackOnCommand) {
         this.backendUrl = backendUrl;
         this.telemetryIntervalMs = telemetryIntervalMs;
         this.chatBridgeEnabled = chatBridgeEnabled;
@@ -47,6 +49,7 @@ public final class ModConfig {
         this.authToken = authToken;
         this.commandPrefix = commandPrefix;
         this.echoPublicDefault = echoPublicDefault;
+        this.ackOnCommand = ackOnCommand;
     }
 
     public static ModConfig load() {
@@ -55,7 +58,7 @@ public final class ModConfig {
         try {
             if (Files.notExists(path)) {
                 Files.createDirectories(configDir);
-                ModConfig def = new ModConfig("ws://127.0.0.1:8765", 1000, true, 2, null, "!", false);
+                ModConfig def = new ModConfig("ws://127.0.0.1:8765", 500, true, 2, null, "!", false, true);
                 try (BufferedWriter w = Files.newBufferedWriter(path, StandardCharsets.UTF_8)) {
                     GSON.toJson(def, w);
                 }
@@ -63,11 +66,23 @@ public final class ModConfig {
                 return def;
             }
             try (BufferedReader r = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
-                return GSON.fromJson(r, ModConfig.class);
+                ModConfig cfg = GSON.fromJson(r, ModConfig.class);
+                // If ack_on_command is absent in existing config, default it to true in-memory
+                if (cfg == null) return new ModConfig("ws://127.0.0.1:8765", 500, true, 2, null, "!", false, true);
+                return new ModConfig(
+                    cfg.backendUrl,
+                    cfg.telemetryIntervalMs,
+                    cfg.chatBridgeEnabled,
+                    cfg.chatBridgeRateLimitPerSec,
+                    cfg.authToken,
+                    cfg.commandPrefix,
+                    cfg.echoPublicDefault,
+                    (cfg.ackOnCommand)
+                );
             }
         } catch (IOException e) {
             LOGGER.warn("failed to load config, using defaults: {}", e.toString());
-            return new ModConfig("ws://127.0.0.1:8765", 1000, true, 2, null, "!", false);
+            return new ModConfig("ws://127.0.0.1:8765", 500, true, 2, null, "!", false, true);
         }
     }
 }

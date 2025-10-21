@@ -47,7 +47,7 @@ SKILLS: Dict[str, Skill] = {
 
     # Crafting table recipes
     "minecraft:wooden_pickaxe": Skill(
-        consume={"minecraft:planks": 3, "minecraft:stick": 2},
+        consume={"minecraft:oak_planks": 3, "minecraft:stick": 2},
         require={"crafting_table_nearby": 1},
         obtain={"minecraft:wooden_pickaxe": 1},
         op="craft",

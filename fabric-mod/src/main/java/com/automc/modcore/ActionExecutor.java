@@ -28,8 +28,8 @@ final class ActionExecutor {
             return;
         }
         if ("ensure".equals(op)) {
-            String ensure = obj.has("ensure") ? obj.get("ensure").getAsString() : "";
-            handleEnsure(actionId, ensure);
+            // fail loudly: ensure-context is handled via Baritone (#set + #find + #goto) from backend
+            sendProgress(actionId, "fail", "ensure handled via Baritone; no client fallback");
             return;
         }
         // Unknown or unimplemented op
@@ -43,17 +43,7 @@ final class ActionExecutor {
         }
     }
 
-    private static void handleEnsure(String actionId, String ensure) {
-        if ("crafting_table_nearby".equals(ensure)) {
-            EnsureContext.ensureCraftingTableNearby(actionId);
-            return;
-        }
-        if ("furnace_nearby".equals(ensure)) {
-            EnsureContext.ensureFurnaceNearby(actionId);
-            return;
-        }
-        sendProgress(actionId, "skipped", "unknown ensure: " + ensure);
-    }
+    // no ensure handler
 
     static void sendProgress(String actionId, String status, String note) {
         WebSocketClientManager.getInstance().sendJson(ClientMessages.progress(actionId, status, note));

@@ -13,6 +13,7 @@ package com.automc.modcore;
 
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.entity.player.PlayerInventory;
+import net.minecraft.client.gui.screen.ingame.InventoryScreen;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.registry.Registries;
@@ -78,6 +79,7 @@ final class Crafting2x2 {
     private static void craftPlanks(String actionId, int crafts) {
         MinecraftClient mc = MinecraftClient.getInstance();
         if (mc == null || mc.player == null || mc.interactionManager == null) return;
+        ensureInventoryScreenOpen(mc);
         PlayerInventory inv = mc.player.getInventory();
         int made = 0;
         for (int i = 0; i < crafts; i++) {
@@ -88,10 +90,10 @@ final class Crafting2x2 {
             click(srcSlot, 0, SlotActionType.PICKUP);
             // Place one into craft input slot 1 via right-click
             click(1, 1, SlotActionType.PICKUP);
-            // Shift-click result to inventory
-            click(0, 0, SlotActionType.QUICK_MOVE);
-            // Return remainder to source slot (left click)
+            // Return remainder to source slot (left click) so cursor is empty
             click(srcSlot, 0, SlotActionType.PICKUP);
+            // Shift-click result to inventory (cursor empty)
+            click(0, 0, SlotActionType.QUICK_MOVE);
             made++;
         }
         if (made > 0) {
@@ -104,6 +106,7 @@ final class Crafting2x2 {
     private static void craftSticks(String actionId, int crafts) {
         MinecraftClient mc = MinecraftClient.getInstance();
         if (mc == null || mc.player == null || mc.interactionManager == null) return;
+        ensureInventoryScreenOpen(mc);
         PlayerInventory inv = mc.player.getInventory();
         int made = 0;
         for (int i = 0; i < crafts; i++) {
@@ -115,10 +118,10 @@ final class Crafting2x2 {
             // Place one plank into slot 1 (top-left) and one into slot 3 (bottom-left)
             click(1, 1, SlotActionType.PICKUP);
             click(3, 1, SlotActionType.PICKUP);
-            // Shift-click result (sticks)
-            click(0, 0, SlotActionType.QUICK_MOVE);
             // Return remainder to source slot
             click(srcSlot, 0, SlotActionType.PICKUP);
+            // Shift-click result (sticks)
+            click(0, 0, SlotActionType.QUICK_MOVE);
             made++;
         }
         if (made > 0) {
@@ -131,6 +134,7 @@ final class Crafting2x2 {
     private static void craftTable(String actionId, int crafts) {
         MinecraftClient mc = MinecraftClient.getInstance();
         if (mc == null || mc.player == null || mc.interactionManager == null) return;
+        ensureInventoryScreenOpen(mc);
         PlayerInventory inv = mc.player.getInventory();
         int made = 0;
         for (int i = 0; i < crafts; i++) {
@@ -144,10 +148,10 @@ final class Crafting2x2 {
             click(2, 1, SlotActionType.PICKUP);
             click(3, 1, SlotActionType.PICKUP);
             click(4, 1, SlotActionType.PICKUP);
-            // Shift-click result (crafting table)
-            click(0, 0, SlotActionType.QUICK_MOVE);
             // Return remainder to source slot
             click(srcSlot, 0, SlotActionType.PICKUP);
+            // Shift-click result (crafting table)
+            click(0, 0, SlotActionType.QUICK_MOVE);
             made++;
         }
         if (made > 0) {
@@ -155,5 +159,13 @@ final class Crafting2x2 {
         } else {
             ActionExecutor.sendProgress(actionId, "fail", "missing input: planks");
         }
+    }
+
+    private static void ensureInventoryScreenOpen(MinecraftClient mc) {
+        try {
+            if (!(mc.currentScreen instanceof net.minecraft.client.gui.screen.ingame.InventoryScreen)) {
+                mc.setScreen(new InventoryScreen(mc.player));
+            }
+        } catch (Throwable ignored) {}
     }
 }

@@ -9,22 +9,22 @@ class TestIntents(unittest.TestCase):
     def test_echo(self) -> None:
         self.assertEqual(parse_command_text("!echo hello"), {"type": "echo", "text": "hello"})
 
-    def test_craft_normalization_simple(self) -> None:
-        intent = parse_command_text("!craft 2 stick")
+    def test_get_normalization_simple(self) -> None:
+        intent = parse_command_text("!get stick 2")
         self.assertEqual(intent, {"type": "craft_item", "item": "minecraft:stick", "count": 2})
 
-    def test_craft_aliases(self) -> None:
-        intent = parse_command_text("!craft 1 iron pick")
+    def test_get_aliases(self) -> None:
+        intent = parse_command_text("!get iron pick 1")
         self.assertEqual(intent, {"type": "craft_item", "item": "minecraft:iron_pickaxe", "count": 1})
-        intent2 = parse_command_text("!craft 1 iron pickaxe")
+        intent2 = parse_command_text("!get iron pickaxe 1")
         self.assertEqual(intent2, {"type": "craft_item", "item": "minecraft:iron_pickaxe", "count": 1})
 
-    def test_craft_explicit_namespace(self) -> None:
-        intent = parse_command_text("!craft 4 minecraft:torch")
+    def test_get_explicit_namespace(self) -> None:
+        intent = parse_command_text("!get minecraft:torch 4")
         self.assertEqual(intent, {"type": "craft_item", "item": "minecraft:torch", "count": 4})
 
-    def test_craft_planks_normalizes_to_oak_planks(self) -> None:
-        intent = parse_command_text("!craft 1 planks")
+    def test_get_planks_normalizes_to_oak_planks(self) -> None:
+        intent = parse_command_text("!get planks 1")
         self.assertEqual(intent, {"type": "craft_item", "item": "minecraft:oak_planks", "count": 1})
 
     def test_non_command_returns_none(self) -> None:

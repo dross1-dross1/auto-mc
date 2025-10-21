@@ -134,11 +134,11 @@ async def main() -> int:
         print("[ok] multicast")
         passed += 1
 
-        # 6) !craft -> plan then action_request
+        # 6) !get -> plan then action_request
         await send_json(ws, {
             "type": "command",
             "request_id": "req-craft-1",
-            "text": "!craft 1 iron pickaxe",
+            "text": "!get iron pickaxe 1",
             "player_id": PLAYER_ID,
         })
         plan = await recv_until_type(ws, "plan")

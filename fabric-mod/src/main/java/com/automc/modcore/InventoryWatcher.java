@@ -130,8 +130,14 @@ final class InventoryWatcher {
         try {
             MinecraftClient mc = MinecraftClient.getInstance();
             if (mc == null || mc.world == null) return null;
-            // Attempt to infer container position from crosshair target block pos if any, else player pos
-            BlockPos pos = player.getBlockPos();
+            // Infer container absolute position from current crosshair target if it's a block, else skip snapshot
+            BlockPos pos = null;
+            try {
+                if (mc.crosshairTarget instanceof net.minecraft.util.hit.BlockHitResult bhr) {
+                    pos = bhr.getBlockPos();
+                }
+            } catch (Throwable ignored) {}
+            if (pos == null) return null;
             int[] p = new int[]{pos.getX(), pos.getY(), pos.getZ()};
             String dim = mc.world.getRegistryKey().getValue().toString();
             Map<Integer, SlotEntry> slots = new HashMap<>();
@@ -145,11 +151,21 @@ final class InventoryWatcher {
                 slots.put(i, new SlotEntry(id, cnt));
             }
             String hash = Integer.toHexString(slots.hashCode() ^ version ^ dim.hashCode());
-            return new Snapshot(dim, p, handler.getClass().getSimpleName(), version, hash, slots);
+            // Filter: only record known container types; ignore player inventory-only screens
+            String containerType = handler.getClass().getSimpleName();
+            if (!isContainerType(containerType)) return null;
+            return new Snapshot(dim, p, containerType, version, hash, slots);
         } catch (Throwable t) {
             LOGGER.debug("snapshot error: {}", t.toString());
             return null;
         }
+    }
+
+    private static boolean isContainerType(String name) {
+        if (name == null) return false;
+        String n = name.toLowerCase();
+        // heuristic: include common container screen handlers
+        return n.contains("chest") || n.contains("furnace") || n.contains("smoker") || n.contains("blastfurnace") || n.contains("ender") || n.contains("barrel") || n.contains("shulker");
     }
 
     private static final class SlotEntry {

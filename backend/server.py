@@ -122,18 +122,7 @@ class BackendServer:
                         logger.info("handshake from %s (%s)", pid, uname)
                     else:
                         logger.info("handshake from player_id=%s", pid)
-                    # Send a minimal settings_update scaffold so clients learn defaults (optional)
-                    try:
-                        await self._send_json(session.websocket, {
-                            "type": "settings_update",
-                            "settings": {
-                                "telemetry_interval_ms": max(250, self.settings.default_action_spacing_ms * 5),
-                                "rate_limit_chat": self.settings.max_chat_sends_per_sec,
-                                "echo_public_default": False,
-                            },
-                        })
-                    except Exception:
-                        pass
+                    # Do not override client telemetry interval here; clients honor their config/settings updates
                     # Optional: could send settings_update later
                     continue
 
@@ -252,8 +241,9 @@ class BackendServer:
                 "Available commands:\n"
                 "!help - Show this help\n"
                 "!who - List online agents (uuid and username)\n"
+                "!stop - Halt current Baritone action\n"
                 "!echo <text> - Display text locally (or publicly if configured)\n"
-                "!craft <count> <item> - Plan and execute crafting (v0: 2x2 crafts acknowledged, 3x3/smelt pending)\n"
+                "!get <item> <count> - Plan and execute acquisition/crafting (v0: 2x2 crafts acknowledged, 3x3/smelt pending)\n"
                 "!echomulti <name1,name2,...> <message|#cmd|.cmd> - Send chat/command to targets\n"
                 "!echoall <message|#cmd|.cmd> - Send chat/command to all online agents\n"
                 "!settings <json> - Apply runtime settings to clients (rate limits, intervals)\n"
@@ -269,7 +259,23 @@ class BackendServer:
         if intent and intent.get("type") == "craft_item":
             item_id = str(intent["item"])  # type: ignore[index]
             count = int(intent["count"])  # type: ignore[index]
-            steps = plan_craft(item_id, count)
+            # Build current inventory counts from last telemetry for inventory-aware planning
+            inv_counts: Dict[str, int] = {}
+            try:
+                ps = self.state.get_player_state(player_id)
+                inv_list = (ps or {}).get("state", {}).get("inventory", [])
+                if isinstance(inv_list, list):
+                    for slot in inv_list:
+                        try:
+                            iid = str(slot.get("id"))
+                            c = int(slot.get("count", 0))
+                            if iid:
+                                inv_counts[iid] = inv_counts.get(iid, 0) + c
+                        except Exception:
+                            continue
+            except Exception:
+                inv_counts = {}
+            steps = plan_craft(item_id, count, inventory_counts=inv_counts)
             plan_id = str(uuid.uuid4())
             plan = {
                 "type": "plan",
@@ -317,6 +323,17 @@ class BackendServer:
                 "text": payload,
             }
             await self._multicast([], out)
+            return
+
+        if intent and intent.get("type") == "stop":
+            # Force stop current Baritone action for this client
+            await self._send_json(session.websocket, {
+                "type": "action_request",
+                "action_id": str(uuid.uuid4()),
+                "mode": "chat_bridge",
+                "op": "chat",
+                "chat_text": "#stop",
+            })
             return
 
         if intent and intent.get("type") == "who":

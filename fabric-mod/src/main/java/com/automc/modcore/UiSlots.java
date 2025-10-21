@@ -8,9 +8,10 @@ final class UiSlots {
     private UiSlots() {}
 
     static int toHandlerSlotIndex(int playerInvIndex) {
-        // PlayerInventory: 0..8 hotbar, 9..35 main; PlayerScreenHandler: 32..40 hotbar, 5..31 main
-        if (playerInvIndex >= 0 && playerInvIndex <= 8) return 32 + playerInvIndex;
-        return 5 + (playerInvIndex - 9);
+        // PlayerInventory indices: 0..8 hotbar, 9..35 main
+        // PlayerScreenHandler slot indices: 36..44 hotbar, 9..35 main (0..4 are 2x2/result, 5..8 armor/offhand)
+        if (playerInvIndex >= 0 && playerInvIndex <= 8) return 36 + playerInvIndex;
+        return playerInvIndex;
     }
 
     static void click(int slot, int button, SlotActionType type) {

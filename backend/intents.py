@@ -7,7 +7,7 @@ dicts for the planner/dispatcher, avoiding LLM dependence in v0.
 
 Supported patterns:
 - !echo <text>
-- !craft <count> <item words>
+- !get <item words> <count>
 
 """
 
@@ -26,13 +26,16 @@ def parse_command_text(text: str) -> Optional[Dict[str, object]]:
     if text == "!who" or text.startswith("!who "):
         return {"type": "who"}
 
+    if text == "!stop":
+        return {"type": "stop"}
+
     if text.startswith("!echo "):
         return {"type": "echo", "text": text[len("!echo ") :].strip()}
 
-    m = re.match(r"^!craft\s+(\d+)\s+(.+)$", text)
+    m = re.match(r"^!get\s+(.+)\s+(\d+)$", text)
     if m:
-        count = int(m.group(1))
-        item_words = m.group(2).strip().lower().replace(" ", "_")
+        item_words = m.group(1).strip().lower().replace(" ", "_")
+        count = int(m.group(2))
         # Normalization: prefer concrete item ids matching game names
         item_map = {
             "iron_pickaxe": "minecraft:iron_pickaxe",

@@ -29,6 +29,17 @@ public final class ChatInterceptor {
                 obj.addProperty("text", message);
                 obj.addProperty("player_id", WebSocketClientManager.getInstance().getPlayerId());
                 WebSocketClientManager.getInstance().sendJson(obj);
+                // Optional debug acknowledgement in local chat HUD
+                if (WebSocketClientManager.getInstance().getAckOnCommandEnabled()) {
+                    net.minecraft.client.MinecraftClient mc = net.minecraft.client.MinecraftClient.getInstance();
+                    if (mc != null) {
+                        mc.execute(() -> {
+                            if (mc.inGameHud != null) {
+                                mc.inGameHud.getChatHud().addMessage(net.minecraft.text.Text.of("[auto-mc] " + message));
+                            }
+                        });
+                    }
+                }
                 return false;
             }
             return true;
