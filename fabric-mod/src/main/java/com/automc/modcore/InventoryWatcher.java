@@ -63,13 +63,13 @@ final class InventoryWatcher {
     }
 
     private static long lastDiffSendMs = 0L;
-    private static final long DIFF_DEBOUNCE_MS = 150L;
 
     private static void tryEmitDiff(MinecraftClient mc) {
         if (mc == null || mc.player == null) return;
         if (!(mc.currentScreen instanceof HandledScreen<?> hs)) return;
         long nowMs = System.currentTimeMillis();
-        if ((nowMs - lastDiffSendMs) < DIFF_DEBOUNCE_MS) return;
+        int debounce = WebSocketClientManager.getInstance().getInventoryDiffDebounceMs();
+        if ((nowMs - lastDiffSendMs) < debounce) return;
         ScreenHandler h = hs.getScreenHandler();
         Snapshot prev = lastSnapshot.get(h.syncId);
         Snapshot snap = buildSnapshot(mc.player, h);

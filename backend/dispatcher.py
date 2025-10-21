@@ -40,7 +40,7 @@ class Dispatcher:
         self._on_action_send = on_action_send
 
     async def run_linear(self, steps: List[Dict[str, Any]]) -> None:
-        spacing = max(0, int(self.settings.default_action_spacing_ms)) / 1000.0
+        spacing = int(self.settings.default_action_spacing_ms) / 1000.0
         last_chat_text: str = ""
         for step in steps:
             action_id = str(uuid.uuid4())
@@ -91,7 +91,11 @@ class Dispatcher:
                 target_item = str(step.get("item", ""))
                 need = int(step.get("count", 0)) if isinstance(step.get("count"), int) else 0
                 if target_item and need > 0:
-                    await self._wait_until_inventory_has(target_item, need, timeout_s=max(30, need * 3))
+                    # Use configurable timeout policy from settings
+                    per_item_ms = int(self.settings.acquire_timeout_per_item_ms)
+                    min_ms = int(self.settings.acquire_min_timeout_ms)
+                    timeout_s = (min_ms if (min_ms > per_item_ms * need) else (per_item_ms * need)) / 1000.0
+                    await self._wait_until_inventory_has(target_item, need, timeout_s=timeout_s)
                     # Send #stop to halt mining once satisfied
                     stop = {"type": "action_request", "action_id": str(uuid.uuid4()), "mode": "chat_bridge", "op": "chat", "chat_text": "#stop"}
                     await self.websocket.send(json.dumps(stop, separators=(",", ":")))
@@ -180,14 +184,15 @@ class Dispatcher:
             return f"#mine {x} {y} {z}"
         return "#stop"
 
-    async def _wait_until_inventory_has(self, item_id: str, count: int, timeout_s: int = 60) -> None:
-        """Poll the latest telemetry inventory via state_service until count met or timeout."""
+    async def _wait_until_inventory_has(self, item_id: str, count: int, timeout_s: float) -> None:
+        """Poll latest telemetry inventory until count met or configurable timeout elapses."""
         if not self.player_id or not self.state_service or count <= 0:
             await asyncio.sleep(0)
             return
         import time
         start = time.time()
-        while (time.time() - start) < timeout_s:
+        poll_ms = int(self.settings.acquire_poll_interval_ms)
+        while (time.time() - start) < float(timeout_s):
             try:
                 player_state = self.state_service.get_player_state(self.player_id)  # type: ignore[attr-defined]
                 if player_state and isinstance(player_state.get("state", {}).get("inventory"), list):
@@ -199,8 +204,7 @@ class Dispatcher:
                         return
             except Exception:
                 pass
-            await asyncio.sleep(0.5)
-        # timeout: return; mining may still be running, but we won't block further
+            await asyncio.sleep(poll_ms / 1000.0)
 
     def _should_skip_step_due_to_inventory(self, step: Dict[str, Any]) -> bool:
         if not self.player_id or not self.state_service:

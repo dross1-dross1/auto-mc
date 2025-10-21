@@ -6,6 +6,7 @@ import unittest
 from typing import Any, Dict
 
 from backend.dispatcher import Dispatcher
+from backend.config import load_settings
 
 
 class DummyWS:
@@ -26,6 +27,38 @@ class DummyState:
 
 class TestDispatcher(unittest.TestCase):
     def test_acquire_to_chat_mappings(self) -> None:
+        # Ensure a minimal config.json exists for settings load
+        import json, os
+        if not os.path.exists("config.json"):
+            with open("config.json", "w", encoding="utf-8") as f:
+                json.dump({
+                    "host": "127.0.0.1",
+                    "port": 8765,
+                    "log_level": "INFO",
+                    "auth_token": None,
+                    "allow_remote": False,
+                    "tls_enabled": False,
+                    "tls_cert_file": None,
+                    "tls_key_file": None,
+                    "max_chat_sends_per_sec": 5,
+                    "default_retry_attempts": 3,
+                    "default_retry_backoff_ms": 500,
+                    "default_action_timeout_ms": 30000,
+                    "default_action_spacing_ms": 200,
+                    "idle_shutdown_seconds": 0,
+                            "acquire_poll_interval_ms": 500,
+                            "acquire_timeout_per_item_ms": 3000,
+                            "acquire_min_timeout_ms": 30000,
+                    "client_settings": {
+                        "backend_url": "ws://127.0.0.1:8765",
+                        "telemetry_interval_ms": 500,
+                        "chat_bridge_enabled": True,
+                        "chat_bridge_rate_limit_per_sec": 2,
+                        "command_prefix": "!",
+                        "echo_public_default": False,
+                        "ack_on_command": True
+                    }
+                }, f)
         d = Dispatcher(DummyWS())
         self.assertEqual(d._acquire_to_chat({"item": "minecraft:iron_ore"}), "#mine iron_ore")
         self.assertEqual(d._acquire_to_chat({"item": "minecraft:coal"}), "#mine coal_ore")

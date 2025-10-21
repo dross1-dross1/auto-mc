@@ -26,8 +26,7 @@ final class Protocol {
     static final String MODE_CHAT_BRIDGE = "chat_bridge";
     static final String MODE_MOD_NATIVE = "mod_native";
 
-    // Limits
-    static final int MAX_CHAT_LENGTH = 256;
+    // Limits moved to runtime settings via WebSocketClientManager
 }
 
 

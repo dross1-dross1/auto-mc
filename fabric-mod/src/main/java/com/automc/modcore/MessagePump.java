@@ -31,9 +31,10 @@ final class MessagePump {
         if (registered) return;
         registered = true;
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
-            // Drain up to a sane number per tick to avoid stalls
-            List<String> batch = new ArrayList<>(32);
-            for (int i = 0; i < 64; i++) {
+            // Drain up to configured number per tick to avoid stalls
+            int maxPerTick = WebSocketClientManager.getInstance().getMessagePumpMaxPerTick();
+            List<String> batch = new ArrayList<>(Math.min(64, Math.max(1, maxPerTick)));
+            for (int i = 0; i < maxPerTick; i++) {
                 String msg = QUEUE.poll();
                 if (msg == null) break;
                 batch.add(msg);
@@ -49,8 +50,9 @@ final class MessagePump {
     }
 
     static void enqueue(String raw) {
-        // Drop if queue is too large to avoid runaway memory usage
-        if (QUEUE.size() > 2048) {
+        // Drop if queue is too large to avoid runaway memory usage (configurable)
+        int cap = WebSocketClientManager.getInstance().getMessagePumpQueueCap();
+        if (QUEUE.size() > cap) {
             return;
         }
         QUEUE.offer(raw);

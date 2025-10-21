@@ -40,8 +40,9 @@ final class MinecraftChat {
     private static String sanitize(String text) {
         if (text == null) return "";
         String trimmed = text.replaceAll("\r|\n", " ").trim();
-        if (trimmed.length() > Protocol.MAX_CHAT_LENGTH) {
-            trimmed = trimmed.substring(0, Protocol.MAX_CHAT_LENGTH);
+        int maxLen = WebSocketClientManager.getInstance().getChatMaxLength();
+        if (trimmed.length() > maxLen) {
+            trimmed = trimmed.substring(0, maxLen);
         }
         // Prevent accidental @everyone or formatting abuse; basic neutralization
         trimmed = trimmed.replaceAll("@everyone", "@everyοne");

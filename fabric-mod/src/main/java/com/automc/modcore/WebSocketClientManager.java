@@ -49,6 +49,10 @@ public final class WebSocketClientManager {
     private volatile Integer chatRateLimitPerSecOverride = null;
     private volatile Boolean echoPublicDefaultOverride = null;
     private volatile Integer telemetryIntervalMsOverride = null;
+    private volatile Integer messagePumpMaxPerTickOverride = null;
+    private volatile Integer messagePumpQueueCapOverride = null;
+    private volatile Integer inventoryDiffDebounceMsOverride = null;
+    private volatile Integer chatMaxLengthOverride = null;
 
     private WebSocketClientManager() {}
 
@@ -75,7 +79,7 @@ public final class WebSocketClientManager {
     }
 
     public int getChatRateLimitPerSecEffective() {
-        if (this.chatRateLimitPerSecOverride != null) return Math.max(0, this.chatRateLimitPerSecOverride.intValue());
+        if (this.chatRateLimitPerSecOverride != null) return this.chatRateLimitPerSecOverride.intValue();
         return (this.config != null) ? this.config.chatBridgeRateLimitPerSec : 0;
     }
 
@@ -84,8 +88,24 @@ public final class WebSocketClientManager {
     }
 
     public int getTelemetryIntervalMsEffective() {
-        if (this.telemetryIntervalMsOverride != null) return Math.max(250, this.telemetryIntervalMsOverride.intValue());
-        return (this.config != null) ? Math.max(250, this.config.telemetryIntervalMs) : 500;
+        if (this.telemetryIntervalMsOverride != null) return this.telemetryIntervalMsOverride.intValue();
+        return (this.config != null) ? this.config.telemetryIntervalMs : 500;
+    }
+
+    public int getMessagePumpMaxPerTick() {
+        return (this.messagePumpMaxPerTickOverride != null) ? this.messagePumpMaxPerTickOverride.intValue() : 64;
+    }
+
+    public int getMessagePumpQueueCap() {
+        return (this.messagePumpQueueCapOverride != null) ? this.messagePumpQueueCapOverride.intValue() : 2048;
+    }
+
+    public int getInventoryDiffDebounceMs() {
+        return (this.inventoryDiffDebounceMsOverride != null) ? this.inventoryDiffDebounceMsOverride.intValue() : 150;
+    }
+
+    public int getChatMaxLength() {
+        return (this.chatMaxLengthOverride != null) ? this.chatMaxLengthOverride.intValue() : 256;
     }
 
     public synchronized void start(ModConfig config) {
@@ -245,13 +265,25 @@ public final class WebSocketClientManager {
         if (settings == null) return;
         try {
             if (settings.has("telemetry_interval_ms")) {
-                this.telemetryIntervalMsOverride = Math.max(250, settings.get("telemetry_interval_ms").getAsInt());
+                this.telemetryIntervalMsOverride = settings.get("telemetry_interval_ms").getAsInt();
             }
             if (settings.has("rate_limit_chat")) {
-                this.chatRateLimitPerSecOverride = Math.max(0, settings.get("rate_limit_chat").getAsInt());
+                this.chatRateLimitPerSecOverride = settings.get("rate_limit_chat").getAsInt();
             }
             if (settings.has("echo_public_default")) {
                 this.echoPublicDefaultOverride = settings.get("echo_public_default").getAsBoolean();
+            }
+            if (settings.has("message_pump_max_per_tick")) {
+                this.messagePumpMaxPerTickOverride = settings.get("message_pump_max_per_tick").getAsInt();
+            }
+            if (settings.has("message_pump_queue_cap")) {
+                this.messagePumpQueueCapOverride = settings.get("message_pump_queue_cap").getAsInt();
+            }
+            if (settings.has("inventory_diff_debounce_ms")) {
+                this.inventoryDiffDebounceMsOverride = settings.get("inventory_diff_debounce_ms").getAsInt();
+            }
+            if (settings.has("chat_max_length")) {
+                this.chatMaxLengthOverride = settings.get("chat_max_length").getAsInt();
             }
             if (settings.has("baritone") && settings.get("baritone").isJsonObject()) {
                 com.google.gson.JsonObject baritone = settings.getAsJsonObject("baritone");

@@ -122,8 +122,15 @@ class BackendServer:
                         logger.info("handshake from %s (%s)", pid, uname)
                     else:
                         logger.info("handshake from player_id=%s", pid)
-                    # Do not override client telemetry interval here; clients honor their config/settings updates
-                    # Optional: could send settings_update later
+                    # Immediately push baseline client settings so the mod has no local fallbacks
+                    try:
+                        await self._send_json(session.websocket, {
+                            "type": "settings_update",
+                            "settings": dict(self.settings.client_settings),
+                        })
+                    except Exception:
+                        logger.debug("failed to send initial settings_update")
+                    # Do not override client telemetry interval elsewhere; clients honor settings updates
                     continue
 
                 if mtype == "command":
@@ -363,9 +370,13 @@ class BackendServer:
         if text.startswith("!settings "):
             try:
                 payload = json.loads(text[len("!settings "):].strip())
+                # Merge with baseline from config.json client_settings
+                base = dict(self.settings.client_settings)
+                merged = dict(base)
+                merged.update(payload)
                 await self._send_json(session.websocket, {
                     "type": "settings_update",
-                    "settings": payload,
+                    "settings": merged,
                 })
             except Exception:
                 await self._send_json(session.websocket, {

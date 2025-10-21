@@ -4,19 +4,11 @@ A Minecraft Java Edition project that lets you type high-level commands in chat 
 
 This file is the working plan: what to build, the outcomes to hit, and how to do it.
 
-## Versions and compatibility
-- Minecraft Java Edition: 1.21.8+
-- Fabric Loader: latest compatible with 1.21.8+
-- Fabric API: latest compatible with 1.21.8+
-- Wurst: latest compatible with 1.21.8+
-- Baritone: latest compatible with 1.21.8+
-- Control strategy: send chat commands to Baritone (`#...`) and Wurst (`.`) to reduce tight coupling. Parse chat output and combine with telemetry for feedback.
-
 ---
 
 ## What you will have when this works
 
-- Type commands like `!get minecraft:iron_pickaxe 1` and watch the agent do it end-to-end (from resource gathering to hierarchical automatic component crafting), survival-safe.
+- Type commands like `!get minecraft:stone_pickaxe 1` and watch the agent do it end-to-end (from resource gathering to hierarchical automatic component crafting), survival-safe.
 - Multiplayer-ready: multiple agents (clients) connect to one central Python backend (can be remote) with auth.
 - Chat-bridge control for Baritone/Wurst; mod-native actions only for ensure-context and minimal UI interactions; settings can be broadcast/overridden centrally.
 - Deterministic planner, shared storage catalog persist, pause and resume.
@@ -30,26 +22,53 @@ chat `!get ...` → mod sends JSON → backend parses → planner makes step tre
 
 ---
 
-## Architecture (high-level)
+## Architecture
 
+### Scope
+Small, deterministic system to accept chat commands, produce explicit plans, and execute via chat bridge or minimal mod-native actions. Stateless client; single-source `config.json`; JSON-only persistence.
+
+### Contracts (wire protocol + actions)
+
+Wire protocol (selected messages)
+- handshake
+  - { type, seq, player_id, auth_token?, client_version, capabilities }
+- settings_update / settings_broadcast
+  - { type, seq, player_id? (optional for all), settings: { telemetry_interval_ms, rate_limit_chat, baritone: {...}, wurst: {...} } }
+- task_assign
+  - { type, seq, request_id, player_id, intent | plan }
+- handoff
+  - { type, seq, from_player_id, to_player_id, chest: { dim,pos }, items: [{ id, count, nbt? }] }
+- progress_update (extend)
+  - { type, seq, action_id, status, note?, eta_ms? }
+
+Action table (v0 excerpt)
+- navigate_to: pre near-free path; post within tolerance; timeout dynamic by distance.
+- mine: pre tool available and target known; post items collected or target absent; retries with new tool if policy.
+- place: pre has blocks; post block at pos; rollback if occupied by wrong block (policy).
+- craft_item: pre materials available or sub-goals queued; post item count increased; timeout per recipe.
+- open_container/deposit/withdraw: pre in range and LOS; post inventory deltas match; emits `inventory_diff`.
+- chat_send: pre rate-limit; post chat echo observed or fallback to telemetry confirmation.
+
+### Boundaries & ownership
+
+#### Fabric mod
 Components
 - Fabric mod: input (`!` chat), telemetry, chat bridge, minimal mod-native actions (explicit interact/craft/smelt), small persistence, shared storage catalog.
 - Baritone/Wurst: movement/building/mining/combat via chat commands; no tight API coupling.
 - Python backend: WebSocket server, intent parsing, deterministic planner, dispatcher, per-agent state, progress/resume.
 
-Data flow
+Interfaces
 - Inbound: player types `!command` → mod sends `{type:"command"}` → backend converts to intent → planner emits plan → dispatcher sends actions.
 - Execution: mod executes actions either by sending chat (`#`, `.`) to offload to Baritone/Wurst or via minimal mod-native operations (ensure/open/interact for crafting/smelting UI).
 - Feedback: mod emits `progress_update`, `telemetry_update`, and forwards filtered `chat_event` lines.
 
-Contracts (summary)
+### Identifiers & sequencing
 - Correlate with ids and sequence numbers: `request_id`, `plan_id`, `action_id`, `seq`.
-- Messages: `handshake`, `command`, `plan`, `action_request`, `progress_update`, `telemetry_update`, `state_request`, `state_response`, `inventory_snapshot`, `inventory_diff`, `world_discovery`, `chat_send`, `chat_event`, `cancel`.
- - Messages: `handshake`, `command`, `plan`, `action_request`, `progress_update`, `telemetry_update`, `state_request`, `state_response`, `inventory_snapshot`, `inventory_diff`, `world_discovery`, `chat_send`, `chat_event`, `cancel`, `chat_broadcast` (planned).
+### Reliability
 - Acks/timeouts/retries: each `action_request` expects a `progress_update` with `status` in `{ok, fail, skipped, cancelled}` within a timeout; backend may retry with bounded attempts/backoff or cancel; resume on reconnect supported.
 
 State & persistence
-- Backend: last telemetry per agent, active requests, plan/step pointer, shared storage catalog (merged across agents), minimal world model (claims), small JSON/DB store.
+- Backend: last telemetry per agent, active requests, plan/step pointer, shared storage catalog (merged across agents), simple area claims (see below), small JSON store only.
 - Mod: config, last active `request_id`, minimal resume data, and a local cache of discovered containers and their observed contents/locations.
 
 Failure semantics
@@ -70,10 +89,10 @@ Security & observability
 
 ---
 
-## Architecture (low-level)
+ 
 
-Modules (Fabric mod)
-- Mod Core
+#### Fabric mod (modules)
+ - Mod Core
   - Responsibilities: lifecycle, config load, WebSocket client, handshake/auth, seq numbers, reconnect/resume.
   - Key types: Config, ConnectionState, MessageEnvelope { type, seq, request_id?, action_id? }.
   - Threads: main game thread for MC events; IO thread for WebSocket.
@@ -81,28 +100,25 @@ Modules (Fabric mod)
   - ChatListener: `!` command capture; `chat_event` filter/forwarder.
   - TelemetryCollector: heartbeat assembly; on-demand `state_response`.
   - InventoryWatcher: container open/close/slot updates → `inventory_snapshot`/`inventory_diff`.
-  - WorldDiscovery: portal/gateway/waypoint detection → `world_discovery`.
 - Action Executor
   - ChatBridgeExecutor: formats Baritone/Wurst commands; rate-limits sends; parses minimal confirmations from chat echo.
   - NativeExecutor: place/break/interact/craft/smelt/container ops/hotbar/eat/sleep/collect_drops; pre/post checks; timeouts; retries. Navigation to containers is offloaded to Baritone; no client fallback for ensure-context.
-  - DimensionTravel: portal registry lookup; navigate; cross; validate new dim; optional portal creation policy.
-- Portal Registry (client cache)
-  - Map by (dim,pos) with target_dim and last_seen; synced from/backend via `world_discovery` merge.
+  
 - Storage Cache (client)
   - Map containers by (dim,pos) with version/hash; deduped; debounced; prepared payload slicing if oversized.
 
-Modules (Python backend)
-- Gateway Server
+#### Backend (modules)
+ - Gateway Server
   - WebSocket endpoints; auth token validation; TLS optional; per-agent session with seq tracking.
   - Health and optional Web UI (monitor agents, plans, actions; broadcast settings).
 - State Service
   - Agent registry; last telemetry; connection health; settings to apply.
   - Shared storage catalog indexed by (dim,pos) with version/hash; Ender chest per player.
-  - Portal/waypoint registry; dimension pairings; timestamps; pruning.
+  - Simple area claims (JSON): rectangular regions marked reserved by an agent to avoid collisions; first-come, expires after timeout.
 - Planner
-  - Deterministic expander using vanilla recipes; pre/post checks; dimension-aware steps; resource policy.
+  - Deterministic expander using vanilla recipes; pre/post checks; resource policy.
   - Cost model hooks (nearest vs allowed zones), durability thresholds, auto-tool crafting.
-- Dispatcher
+ - Dispatcher
   - Plan to actions; per-action timeout; bounded retries with backoff; pause/cancel; resume on reconnect.
   - Multi-agent scheduler (round-robin with priorities later); claims; handoffs to chests; `task_assign`.
   - Chat bridge mapping for `acquire` → Baritone commands (e.g., `#mine coal_ore`, `#mine oak_log`).
@@ -112,7 +128,7 @@ Modules (Python backend)
 - Settings Service
   - Broadcast `settings_update` to agents (e.g., Baritone/Wurst settings, telemetry interval, rate limits).
 - Persistence
-  - Storage: JSON or SQLite (configurable); persists portal registry, storage catalog, agent settings, active requests, last steps.
+  - Storage: JSON files only; persists storage catalog, agent settings, active requests, last steps.
 
 Wire protocol (selected messages)
 - handshake
@@ -131,15 +147,13 @@ Action table (v0 excerpt)
 - mine: pre tool available and target known; post items collected or target absent; retries with new tool if policy.
 - place: pre has blocks; post block at pos; rollback if occupied by wrong block (policy).
 - craft_item: pre materials available or sub-goals queued; post item count increased; timeout per recipe.
-- open_container/deposit/withdraw: pre in range and LOS; post inventory deltas match; emits `inventory_diff`.
-- dimension_travel: pre portal known or policy allows creation; post `dim` changed and safe area check.
-- chat_send: pre rate-limit; post chat echo observed or fallback to telemetry confirmation.
+ - open_container/deposit/withdraw: pre in range and LOS; post inventory deltas match; emits `inventory_diff`.
+ - chat_send: pre rate-limit; post chat echo observed or fallback to telemetry confirmation.
 
 Persistence layout (suggested)
-- db/ (or data/)
-  - agents.json (or agents.sqlite)
-  - storage_catalog.json (or sqlite tables: containers, slots)
-  - portals.json (or sqlite table portals)
+ - data/
+  - agents.json
+  - storage_catalog.json
   - requests.json (active + history)
   - settings.json
 
@@ -191,7 +205,6 @@ Build this:
     - tunnel/stripmine → `.tunnel ...` (Wurst) or `#tunnel ...` (if supported)
     - combat toggles (if allowed) → `.killaura on|off`, `.autoarmor on|off`, `.autoeat on|off`
     - explore (radius) → `#explore <radius>` (if supported)
-    - dimension_travel (target_dim) → use portal registry to navigate to portal and cross; fallback to create portal if policy allows
   - Mod-native actions (no chat; direct interaction):
     - place (block id/pos), break (pos), interact (pos), use_item (item)
     - craft_item (recipe id, count), smelt (inputs, fuel)
@@ -200,13 +213,9 @@ Build this:
     - collect_drops (radius), throw (item,count), sneak/sprint toggles
     - build_from_schematic (worldedit .schem via Baritone builder; Litematica optional future integration)
   - Confirm each action with a success/fail and a short note. v0 implements 2x2 crafting for `minecraft:oak_planks`, `minecraft:stick`, and `minecraft:crafting_table` using client inventory interactions.
-  - Dimension travel support
-    - Maintain a portal registry: known Nether portals and End gateways by `(dim,pos)` with last-seen timestamp; allow backend sync.
-    - When `dimension_travel` is requested: path to nearest suitable portal (Baritone `#goto`), trigger cross (approach/use), then confirm new `dim` via telemetry.
-    - If no portal known and policy allows: gather resources, place obsidian and flint/steel to create portal, light, and cross; record both sides.
-    - End travel: locate stronghold/end portal if allowed (long operation); optional defer until needed.
+  
 - Persistence
-  - Save a small JSON for config (`backend_url`, telemetry interval), last active `request_id`, and minimal resume data. Runtime settings updates can adjust telemetry interval, echo policy, and chat rate limit; Baritone settings applied via `#set`.
+  - No local config files; runtime settings updates adjust telemetry interval, echo policy, and chat rate limit; Baritone settings applied via `#set`.
 
 Notes:
 - Keep code small and clear. Prefer early returns. Only log what helps.
@@ -235,7 +244,6 @@ Build this:
   - Given an intent like "craft 1 iron_pickaxe," expand into a concrete, ordered step list with pre/post checks.
   - Use the current inventory snapshot to prune leaves/outputs before emitting steps (no heuristic conversions).
   - Include resource requirements (sticks, iron ingots) and where to get them (mine, smelt, craft).
-  - Dimension-aware plans: if target or required resources are in another dimension, include `dimension_travel` steps via portal registry, and post-travel sanity checks (spawn safety, bed/respawn policy).
 - Dispatcher
   - Stream steps one at a time to the mod, wait for confirmation, then send the next.
   - On fail, either retry or emit a clear message about what is missing; support `cancel`, `pause`, and `resume`.
@@ -337,17 +345,6 @@ Chat bridge:
 { "type": "chat_event", "player_id": "player-1", "text": "[Baritone] Mining iron_ore...", "ts": "2025-10-18T12:35:00Z" }
 ```
 
-World discovery (portals, waypoints):
-```json
-{
-  "type": "world_discovery",
-  "player_id": "player-1",
-  "discoveries": [
-    { "kind": "portal", "dim": "minecraft:overworld", "pos": [120, 63, -32], "target_dim": "minecraft:the_nether", "last_seen": "2025-10-18T12:40:00Z" },
-    { "kind": "gateway", "dim": "minecraft:the_end", "pos": [0, 64, 80], "target_dim": "minecraft:the_end", "last_seen": "2025-10-18T12:41:00Z" }
-  ]
-}
-```
 
 Action to mod (chat bridge):
 ```json
@@ -397,7 +394,7 @@ Shared storage: delta update
 }
 ```
 
-### 4) Deterministic planner (what it must cover first)
+### 4) Deterministic planner
 
 Outcome: From a small set of goals you care about now, produce reliable step lists.
 
@@ -416,7 +413,7 @@ Known gaps and next steps (v0):
 - Context ensure: `crafting_table_nearby`/`furnace_nearby` use Baritone navigation (`#goto <container>`) with auto-open enabled; fallback to mod-native placement + explicit interact when none found or unreachable.
 - Telemetry/state: client now sends heartbeats; backend pretty-prints `data/state.json`.
 
-### 5) Multi-agent (v0)
+### 5) Multi-agent
 
 Outcome: Run two or more agents concurrently without tripping over each other, including handoffs.
 
@@ -426,108 +423,60 @@ Outcome: Run two or more agents concurrently without tripping over each other, i
 
 ---
 
-## Configuration (keep it simple)
+### Inventory-aware planning
+- The planner expands a dependency tree and prunes leaves/outputs using the current inventory snapshot before emitting steps (no heuristic conversions like “planks to logs”).
+- The dispatcher skips only on exact targets or clear variants (e.g., any `*_log` for logs), not by converting materials.
 
-Use a `.env` file for the backend and a small JSON config file for the mod.
+---
 
-Backend (`.env`):
-- `HOST` (e.g., 127.0.0.1)
-- `PORT` (e.g., 8765)
-- `LOG_LEVEL` (e.g., INFO)
- - `AUTH_TOKEN` (shared secret for non-local agents)
- - `ALLOW_REMOTE` (true|false)
- - `TLS_ENABLED` (true|false) and `TLS_CERT_FILE`, `TLS_KEY_FILE` if enabled
- - `MAX_CHAT_SENDS_PER_SEC` (e.g., 5)
- - `DEFAULT_RETRY_ATTEMPTS` (e.g., 3), `DEFAULT_RETRY_BACKOFF_MS` (e.g., 500)
- - `DEFAULT_ACTION_TIMEOUT_MS` (per-op override supported)
- - `DEFAULT_ACTION_SPACING_MS` (ms between action sends)
- - `IDLE_SHUTDOWN_SECONDS` (idle auto-shutdown; 0 disables)
+### Configuration
 
-Mod (`autominecraft.json` in the game’s config folder):
-- `backend_url` (e.g., ws://127.0.0.1:8765)
-- `telemetry_interval_ms` (e.g., 1000)
-- `chat_bridge_enabled` (true|false)
-- `chat_bridge_rate_limit_per_sec` (e.g., 2)
-- `command_prefix` (e.g., `!`)
-- `echo_public_default` (true|false)
-- `auth_token` (if backend requires it)
+Use a single `config.json` for the backend and runtime client settings.
+
+Backend: `config.json` in project root (single source of truth, required)
+- `host`, `port`, `log_level`, `auth_token`, `allow_remote`, `tls_enabled`, `tls_cert_file`, `tls_key_file`
+- `max_chat_sends_per_sec`, `default_retry_attempts`, `default_retry_backoff_ms`, `default_action_timeout_ms`, `default_action_spacing_ms`, `idle_shutdown_seconds`
+- `client_settings`: baseline applied to clients at runtime via `settings_update` (see below)
+Policy: No hardcoded defaults or fallbacks in code. All tunables must be present in `config.json`; missing required keys cause startup errors. This ensures explicit, reproducible behavior.
+
+Mod: stateless; no per-client file. Runtime behavior (backend URL, telemetry interval, chat rate limit, echo policy, command prefix) is controlled by `client_settings` and subsequent `settings_update` messages.
 
 No secrets in the repo.
 
 ---
 
-## How to run (once code exists)
+### Integrations (Baritone and Wurst)
 
-1) Start the backend
-- Load `.env`.
-- Run the WebSocket server: on Windows use `./run_backend.ps1`; on macOS/Linux `python -m backend` (after venv + requirements install).
-- Watch logs for: "listening on HOST:PORT".
+ - Baritone (chat `#` commands) – core we use
+  - Core commands:
+    - `#goto x y z` / `#goto block_type`
+    - `#mine <block> [count]`
+    - `#tunnel [w h d]`, `#explore`, `#follow ...`, `#stop`
+  - Key settings: `autoTool=true`, `legitMine=true`, `allowBreak/allowPlace=true`, `rightClickContainerOnArrival=true`, `mineScanDroppedItems=true`, conservative path settings.
+  - Action mapping:
+    - acquire(item): blocks via `#mine`; contexts (`crafting_table_nearby`/`furnace_nearby`) via `#goto`.
+    - navigate_to: `#goto ...`; tunnel/explore/follow as needed.
+  - Don’t re-implement: pathfinding, mining, long-range exploration.
+  - Keep mod-native: inventory ops (craft/smelt/transfer), precise placement, equipment management.
+  - Operational notes: send only `#...` via chat bridge, rate-limit, apply settings on connect; use in-game `#help`.
 
-2) Start Minecraft with Fabric + Baritone + Wurst + this mod
-- Confirm the mod connects to the backend.
+ - Wurst7 (chat `.` commands) – optional complement
+  - Useful commands: `.goto`, `.excavate`, `.follow`, `.drop`, `.throw`, `.viewnbt`; dangerous `.nuker` disabled by default.
+  - Policy: prefer Baritone for navigation/mining; allow `.excavate` for straight dig tasks if it proves more reliable.
+  - Mapping: tunnel/stripmine → prefer Baritone; follow → prefer Baritone; inventory/throw → mod-native first.
+  - Operational notes: only when enabled by config and safe (SP vs server); continue to rate-limit.
 
-Optional: Backend UI
-- The backend may expose a simple console or web UI to monitor agents (telemetry, plans, actions) and broadcast settings.
+ - Heartbeat & observability
+  - Client telemetry heartbeat is controlled by config (`telemetry_interval_ms`), default 500 ms; the server does not override it at handshake.
 
-3) Try small things first
-- Watch telemetry updates arrive automatically (interval set in config; default 500 ms).
-- Type `!echo hello` and see a reply.
-- Trigger a simple navigation via the backend that sends `#goto x y z` and watch movement.
-
-4) Try a real goal
-- Type: `!get iron pickaxe 1`.
-- Watch the planner emit steps and the mod execute them.
-
-Developer testing helpers (Windows):
-- `./run_tests.ps1` runs Java and Python tests (`backend/test`).
-
----
-
-## External integrations (context)
-
-- Baritone: automated pathfinding and automation (chat `#` commands). Repo: https://github.com/cabaletta/baritone
-  - Use: navigation, mining, some building; settings via `#set`.
-  - Limits: multi-dimension travel handled at higher layer; noisy chat output.
-  - See usage (`usage.md`) and in-game `#help`.
-  - Settings are applied on-demand via chat commands; the client does not force global defaults on connect.
-
-Inventory-aware planning (v0)
-- Planner expands a dependency tree and prunes leaves/outputs using the current inventory snapshot before emitting steps (no heuristic conversions like “planks to logs”).
-- Dispatcher skips only on exact targets or clear variants (e.g., any `*_log` for logs), not by converting materials.
-
-Heartbeat & observability
-- Client telemetry heartbeat is controlled by config (`telemetry_interval_ms`), default 500 ms; the server does not override it at handshake.
-  - Full capability map and AutoMC usage: see `docs/baritone_capabilities.md`.
-  - Capability mapping: `#goto`, `#goal`+`#path`, `#mine <block> [count]`, `#tunnel`, `#explore`, `#wp`, `#follow`, `rightClickContainerOnArrival`.
-  - Settings commonly tuned: `autoTool`, `legitMine`, `allowPlace`, `allowBreak`, `avoidance`, `mineScanDroppedItems`.
-
-- Wurst7: Fabric client with automation modules (chat `.` commands). Repo: https://github.com/Wurst-Imperium/Wurst7
-  - Use: optional helper modules like AutoEat/AutoArmor/tunneling.
-  - Limits: treat as optional; gate risky features behind config.
-  - See in-game `.help` for commands and modules.
-  - Capability summary and AutoMC usage: see `docs/wurst_capabilities.md`.
-  - Useful commands: `.goto`, `.excavate`, `.follow`, `.drop`, `.throw`, `.viewnbt`, `.nuker` (gated).
-
-Baritone/Wurst usage
-- Ensure-context: `#set rightClickContainerOnArrival true`; optional `#find <container>`; `#goto <container>`. No client fallback.
-- Exploration/mining/tunneling: prefer Baritone (`#mine`, `#explore`, `#tunnel`).
-- Settings are controlled via chat commands only (no settings_update reliance).
-
-- Litematica (optional, later): schematic planning/visualization; potential for integration or printer support (if feasible via text/API).
-
-- JourneyMap (optional, later): world mapping/waypoints to aid discovery/registry.
-
-- SeedcrackerX (optional, later): recover world seed to enable seed-based structure/biome queries. Repo: https://github.com/19MisterX98/SeedcrackerX
-
-- Plan4MC (research): RL+planning for long-horizon tasks; inspiration for planner design. Site: https://sites.google.com/view/plan4mc Repo: https://github.com/PKU-RL/Plan4MC
-  - Concepts to adapt: hierarchical goals, state estimation, long-horizon decomposition.
+ - Optional tools (later): Litematica (schematics), JourneyMap (mapping), SeedcrackerX (seed research), Plan4MC (planner inspiration).
 
 ---
 
 ## Engineering practices and repo layout
 
 Code organization (Java/Fabric)
-- Use clear packages by responsibility: `modcore`, `net`, `telemetry`, `inventory`, `world`, `actions.chat`, `actions.native`, `portal`, `util`.
+- Use clear packages by responsibility: `modcore`, `net`, `telemetry`, `inventory`, `world`, `actions.chat`, `actions.native`, `util`.
 - Separate event listeners from executors. Keep MC thread code minimal; push work to safe threads where applicable.
 - Mod ID: lowercase 8–64 chars, letters/numbers/dash/underscore; consistent across `fabric.mod.json` and packages.
 
@@ -544,39 +493,10 @@ Performance and profiling
 - Keep telemetry cheap; avoid heavy NBT serialization every tick; honor debounce and size caps.
 - Use Minecraft profiler/dev tools for client hotspots; Python: cProfile where needed.
 
-Version control and workflow
-- Git with conventional commits; branches: `main`, `dev`, feature branches.
-- Tag releases with versioned mod jar/backend builds.
-
-Repository layout (proposed)
+Repository layout
 - `fabric-mod/` (Gradle project)
 - `backend/` (Python project)
-- `docs/` (design and diagrams)
+- `docs/` (design)
 - `data/` (runtime state; gitignored)
 - `README.md`
 - Root helper scripts (Windows): `build_mod.ps1`, `run_backend.ps1`, `run_tests.ps1`
-
-## Troubleshooting (plain fixes)
-
-- Mod won’t connect → check `backend_url`, firewall, correct port, and that the backend is running.
-- Baritone won’t move → verify the action payload and that Baritone commands work manually.
-- Plans stall → print the current step and last progress note; if stuck, skip and continue.
-- Restarts lose progress → confirm the progress file path and write permissions.
-- Chat sends but nothing happens → verify `chat_bridge_enabled`, correct prefixes (`#` Baritone, `.` Wurst), and that both mods are loaded/compatible.
-
----
-
-## Scope guardrails (to keep this shippable)
-
-- Fewer features, rock-solid basics.
-- Deterministic only; explicit chat commands and schemas (no LLM).
-- Clear messages over clever abstractions.
-- Safe to run twice; don’t depend on lucky timing.
-
----
-
-## Short glossary (zero jargon)
-
-- Plan: a list of steps like "go here, mine this, craft that."
-- Step: one small action the mod can actually do.
-- Progress: a short status after each step.

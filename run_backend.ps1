@@ -3,7 +3,7 @@ $ErrorActionPreference = 'Stop'
 # Start Python backend using venv if present
 Set-Location -LiteralPath $PSScriptRoot
 
-# If TLS cert/key are present in environment, they will be used by backend per .env
+# Backend reads config strictly from config.json; no .env is used
 
 $venvPython = Join-Path $PSScriptRoot '.venv\Scripts\python.exe'
 if (Test-Path -LiteralPath $venvPython) {
