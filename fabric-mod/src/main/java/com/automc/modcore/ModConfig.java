@@ -1,5 +1,5 @@
 /**
- * AutoMinecraft mod configuration (stateless defaults).
+ * AutoMinecraft mod configuration.
  *
  * Purpose: Provide in-memory defaults only. The mod does not read or write any
  * files. Runtime settings are applied via backend-driven settings_update.
@@ -39,7 +39,6 @@ public final class ModConfig {
     }
 
     public static ModConfig load() {
-        // Stateless defaults; no disk I/O
         return new ModConfig("ws://127.0.0.1:8765", 500, true, 2, null, "!", false, true);
     }
 }

@@ -89,8 +89,6 @@ Security & observability
 
 ---
 
- 
-
 #### Fabric mod (modules)
  - Mod Core
   - Responsibilities: lifecycle, config load, WebSocket client, handshake/auth, seq numbers, reconnect/resume.

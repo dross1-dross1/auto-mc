@@ -95,10 +95,17 @@ class Dispatcher:
                     per_item_ms = int(self.settings.acquire_timeout_per_item_ms)
                     min_ms = int(self.settings.acquire_min_timeout_ms)
                     timeout_s = (min_ms if (min_ms > per_item_ms * need) else (per_item_ms * need)) / 1000.0
-                    await self._wait_until_inventory_has(target_item, need, timeout_s=timeout_s)
-                    # Send #stop to halt mining once satisfied
-                    stop = {"type": "action_request", "action_id": str(uuid.uuid4()), "mode": "chat_bridge", "op": "chat", "chat_text": "#stop"}
-                    await self.websocket.send(json.dumps(stop, separators=(",", ":")))
+                    reached = await self._wait_until_inventory_has(target_item, need, timeout_s=timeout_s)
+                    # Only send #stop to halt mining when we actually reached the target
+                    if reached:
+                        stop = {
+                            "type": "action_request",
+                            "action_id": str(uuid.uuid4()),
+                            "mode": "chat_bridge",
+                            "op": "chat",
+                            "chat_text": "#stop",
+                        }
+                        await self.websocket.send(json.dumps(stop, separators=(",", ":")))
             # In v0, we do not wait synchronously for progress; the mod should reply
             if spacing > 0:
                 await asyncio.sleep(spacing)
@@ -184,11 +191,14 @@ class Dispatcher:
             return f"#mine {x} {y} {z}"
         return "#stop"
 
-    async def _wait_until_inventory_has(self, item_id: str, count: int, timeout_s: float) -> None:
-        """Poll latest telemetry inventory until count met or configurable timeout elapses."""
+    async def _wait_until_inventory_has(self, item_id: str, count: int, timeout_s: float) -> bool:
+        """Poll latest telemetry inventory until count met or timeout.
+
+        Returns True if the target count was reached, False on timeout or invalid preconditions.
+        """
         if not self.player_id or not self.state_service or count <= 0:
             await asyncio.sleep(0)
-            return
+            return False
         import time
         start = time.time()
         poll_ms = int(self.settings.acquire_poll_interval_ms)
@@ -201,10 +211,11 @@ class Dispatcher:
                         if str(slot.get("id")) == item_id:
                             total += int(slot.get("count", 0))
                     if total >= count:
-                        return
+                        return True
             except Exception:
                 pass
             await asyncio.sleep(poll_ms / 1000.0)
+        return False
 
     def _should_skip_step_due_to_inventory(self, step: Dict[str, Any]) -> bool:
         if not self.player_id or not self.state_service:

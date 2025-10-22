@@ -53,7 +53,12 @@ Example `config.json` (full):
     "chat_bridge_rate_limit_per_sec": 2,
     "command_prefix": "!",
     "echo_public_default": false,
-    "ack_on_command": true
+    "ack_on_command": true,
+    "message_pump_max_per_tick": 64,
+    "message_pump_queue_cap": 2048,
+    "inventory_diff_debounce_ms": 150,
+    "chat_max_length": 256,
+    "crafting_click_delay_ms": 40
   }
 }
 ```
@@ -88,9 +93,24 @@ After this, build with the wrapper:
 
 ## Getting started (after cloning)
 
+### Setup (TL;DR)
+- Clone repo; open PowerShell in project root.
+- Ensure Python 3.10+ and JDK 21 available.
+- Create `config.json` (see full example below, include client runtime keys).
+- Install Python deps: `pip install websockets` (system Python; no venvs).
+- Start backend: `./run_backend.ps1`.
+- Build mod: `./build_mod.ps1`.
+
 0) Prerequisites
 - JDK 21 on PATH
 - Python 3.10+ on PATH
+
+If Java isn’t on PATH (Windows PowerShell, current shell only):
+```powershell
+$env:JAVA_HOME = 'C:\\Program Files\\Java\\jdk-21'
+$env:Path = "$env:JAVA_HOME\\bin;" + $env:Path
+java -version
+```
 
 1) Backend: setup and run
 - Create `config.json` in the project root using the example in Configuration.

@@ -8,8 +8,20 @@ $gradlew = Join-Path $fabricModDir 'gradlew.bat'
 if (Test-Path -LiteralPath $gradlew) {
     Push-Location $fabricModDir
     try {
-        & $gradlew --no-daemon test
-        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        # Skip Java tests if JAVA_HOME or 'java' is not available
+        $javaOk = $false
+        if ($env:JAVA_HOME -and (Test-Path -LiteralPath (Join-Path $env:JAVA_HOME 'bin\java.exe'))) {
+            $javaOk = $true
+        } else {
+            $javaCmd = Get-Command java -ErrorAction SilentlyContinue
+            if ($javaCmd) { $javaOk = $true }
+        }
+        if ($javaOk) {
+            & $gradlew --no-daemon test
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        } else {
+            Write-Warning 'Java not found (JAVA_HOME or java on PATH). Skipping Java tests.'
+        }
     } finally {
         Pop-Location
     }
@@ -17,14 +29,7 @@ if (Test-Path -LiteralPath $gradlew) {
     Write-Warning 'gradlew.bat not found; skipping Java tests. See README for wrapper recovery.'
 }
 
-# 2) Python tests (backend/test)
-$venvPython = Join-Path $PSScriptRoot '.venv\Scripts\python.exe'
-if (Test-Path -LiteralPath $venvPython) {
-    & $venvPython -m unittest discover -s backend/test -p test_*.py -q
-    exit $LASTEXITCODE
-}
-
-# Fallback to system Python
+# 2) Python tests (backend/test) - always use system Python
 & python -m unittest discover -s backend/test -p test_*.py -q
 exit $LASTEXITCODE
 

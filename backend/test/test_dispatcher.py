@@ -56,7 +56,13 @@ class TestDispatcher(unittest.TestCase):
                         "chat_bridge_rate_limit_per_sec": 2,
                         "command_prefix": "!",
                         "echo_public_default": False,
-                        "ack_on_command": True
+                                "ack_on_command": True,
+                                # Required client runtime parameters
+                                "message_pump_max_per_tick": 64,
+                                "message_pump_queue_cap": 2048,
+                                "inventory_diff_debounce_ms": 150,
+                                "chat_max_length": 256,
+                                "crafting_click_delay_ms": 40
                     }
                 }, f)
         d = Dispatcher(DummyWS())

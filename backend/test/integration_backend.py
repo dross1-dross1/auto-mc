@@ -122,16 +122,16 @@ async def main() -> int:
         print("[ok] help")
         passed += 1
 
-        # 5) !multicast -> chat_send fan-out (single target)
+        # 5) !echomulti -> chat_send fan-out (single target)
         await send_json(ws, {
             "type": "command",
             "request_id": "req-mcast-1",
-            "text": "!multicast tester !echo hello",
+            "text": "!echomulti tester !echo hello",
             "player_id": PLAYER_ID,
         })
         mcast = await recv_until_type(ws, "chat_send")
         assert mcast.get("text") == "hello", "multicast payload mismatch"
-        print("[ok] multicast")
+        print("[ok] echomulti")
         passed += 1
 
         # 6) !get -> plan then action_request

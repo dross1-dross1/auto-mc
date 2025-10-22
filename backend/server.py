@@ -55,6 +55,17 @@ class BackendServer:
         self.state.load()
         self.storage = StorageCatalog()
 
+    def _player_label(self, player_id: Optional[str]) -> str:
+        pid = player_id or "unknown"
+        try:
+            ps = self.state.get_player_state(pid)
+            uname = ps.get("state", {}).get("username") if ps else None
+            if isinstance(uname, str) and uname:
+                return f"{pid} ({uname})"
+        except Exception:
+            pass
+        return pid
+
     async def start(self) -> None:
         configure_logging(self.settings.log_level)
         host = self.settings.host
@@ -107,21 +118,14 @@ class BackendServer:
                             await websocket.close(code=1008, reason=reason)
                         finally:
                             return
-                    # If username already known from prior runs, include it
-                    uname: Optional[str] = None
+                    # If a player name is provided in handshake, persist it so labels include it immediately
                     try:
-                        if isinstance(pname, str) and pname:
-                            uname = pname
-                        else:
-                            ps = self.state.get_player_state(pid or "") if pid else None
-                            if ps:
-                                uname = ps.get("state", {}).get("username")
+                        if isinstance(pname, str) and pname and isinstance(pid, str) and pid:
+                            await self.state.update_telemetry(pid, "", {"username": pname})
                     except Exception:
-                        uname = None
-                    if isinstance(uname, str) and uname:
-                        logger.info("handshake from %s (%s)", pid, uname)
-                    else:
-                        logger.info("handshake from player_id=%s", pid)
+                        pass
+                    # Log using uuid (name) if we have a cached username
+                    logger.info("handshake from %s", self._player_label(pid))
                     # Immediately push baseline client settings so the mod has no local fallbacks
                     try:
                         await self._send_json(session.websocket, {
@@ -220,18 +224,8 @@ class BackendServer:
         text: str = msg.get("text", "")
         request_id: str = msg.get("request_id") or str(uuid.uuid4())
         player_id = session.player_id or "unknown"
-        # If we have a username alias recorded for this uuid, append it for readability
-        alias = None
-        ps = self.state.get_player_state(player_id)
-        try:
-            if ps:
-                alias = ps.get("state", {}).get("username")
-        except Exception:
-            alias = None
-        if alias:
-            logger.info("command from %s(%s): %s", player_id, alias, text)
-        else:
-            logger.info("command from %s: %s", player_id, text)
+        # Log using uuid (name) when username is known
+        logger.info("command from %s: %s", self._player_label(player_id), text)
 
         intent = parse_command_text(text)
         if intent and intent.get("type") == "echo":
@@ -419,7 +413,7 @@ class BackendServer:
         player_id = session.player_id or "unknown"
         logger.info(
             "progress_update from %s: action_id=%s status=%s note=%s",
-            player_id,
+            self._player_label(player_id),
             msg.get("action_id"),
             msg.get("status"),
             msg.get("note"),
