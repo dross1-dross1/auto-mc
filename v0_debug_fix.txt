@@ -1,0 +1,62 @@
+1. reorganize readme and plan.md[x]
+
+
+
+2. do code review
+
+Below, I have a code review and these are my thoughts about what needs to change.
+Note: just because I mention something in a specific file doesn't mean that the things mention don't apply to other files or the whole project as well, unless stated, so ensure consistency above all else. Also, don't add any fallbacks or backwards compatibility when removing or changing things; also do not add documentation saying that you changed something or that it was removed, it should be gone/changed with no traces. At the end of all your code changes, make sure to do a full check of the documentation and update accordingly.
+- in chatinterceptor.java, i see some hardcoded values, such as "!" and "[auto-mc]", which shouldn't be there, instead of hard coded values, these values should be controlled in the config.json
+- in crafting2x2.java, there's a lot of hard coded things that I think could be generalized.
+	- we should be deriving the crafting recipes based on the minecraft data as ground truth instead of relying on our manual slot inputs
+	- this means that we shouldn't have different fucntions to craft different 2x2 recipes, just a single function
+	- we shouldn't even be hard coding the item id, we should be fetching it and it is up to our minecraft game version/mods installed to determine if a recipe exists or not
+	- it is the responsibility of our code to take the recipe that's built in to minecraft's data to derive a recipe and plan to craft it in the gui.
+	- if possible, if there's no large differences between 2x2 crafting and 3x3 crafting other than requiring a crafting bench for 3x3, then we could handle all gui crafting interactions in a file
+	- here's my proposal: a directory handling in-game input from our mod; inside that directory we should have a class for gui interactions that are general, and then other classes for 2x2, 3x3, furnace, chests, any other gui; we could also have other related classes here
+- in inventorywatcher.java, it is to my understanding that we want to send snapshots of blocks that have inventory storage in them (chests, barrels, furnaces, etc), but I don't think that is what's actually stored in the backend. we should be storing the location of the block, it's inventory, the type of block it is, and anything else important, such as time of last snapshot or something
+	- this could also be in a telemetry directory, along with other related classes
+- in messagerouter.java and minecraftchat.java, i was thinking about something. I know that there is a thing where saying a message in chat using one of the echo variant commands doesn't actually say it to chat as if the user typed it
+	- !echo, echomulti, echoall should emulate as if the user typed the message themselves, just like wurst's .say command. this means that '!echo !echo !echo hi` should make the user say 'hi' as if they typed it to everybody in chat.
+	- or for example, '!echo .say hi` should work too.
+	- however, what shouldn't be sent in chat as the user is feedback messages from the mod, for example we have a [auto-mc] debug chat output that gives information, that's what that is for.
+- in modconfig.java, i'm noticing some default values, which shouldn't be there as they should come from config.json in the backend
+	- of course, we will need some way to connect to the backend then, we could have a command called `!connect` that could take an ip:port, which would allow us to remove all of these hardcoded fallback/default values; and after we connect, the other config values can be set based on config.json
+	- and then after !connect, we would then have access to the agent network
+	- because of this, I would like to remove all aspects of our tls and all other authentication and security code and documentation, and use my way.
+	- my way is for example, `!connect <ip:port> <password>` which the password will be set in the config.json and can verify authetnication
+	- this should reduce complexity while still having some form of security.
+	- also, in the config.json, there's currently a seperate section for the client config, i would like to remove that and flatten everything down so that all config values are on the same level (and of course the config values that the client will need can still be fetched)
+- in uislots.java, this has no documentation comment at top, so it's hard to tell what it does. check what I said before about gui organization and determine if this class should be combined with another or moved to the corresponding directory for organization
+- in websocketclientmanager.java, there are a few things i want to change:
+	- i want all fallbacks removed and to fail loudly if any config data is missing, this includes the uuid fallback, as this should never happen.
+	- this should make the lines shorter and easier to understand, and also guarantee intended behavior instead of having silent fallbacks to values. remember, the config.json is where the source of all control should be
+	- i'm also noticing player_id, but we should not be confused by having multiple ids, there should only be one player id, called player uuid, which should be the actuall uuid of that player's account (this goes for everywhere in this project)
+	- we also shouldn't be modifying the settings of baritone or wurst in any other way other than through chat commands. so remove any code if applicable that changes settings that don't use chat commands
+- in actionexecutor.java, i'm noticing a lot of deprecated comments and code. I would like you to go through the entire codebase and remove all meta comments such as "// no ensure handler" and "// fail loudly: ensure-context..."
+- i'm also noticing inconsistent documentation comments at the start of every code file (both python and java), I need you to make them consistent and useful, all other comments should be removed, as the code should speak for itself. (this applies everywhere)
+- I also noticed that the config.json is often times compressed to a single line. this should never happen, but it does anyway so I would like you to identify the reason why this is happening, and ensure that the json is always expanted (as it should be anyway, because the config should only be read from, not written to.
+- in dispatcher.py, there's quite a few things I want to discuss:
+	- most of the logic here is a bit rugged and impractical
+	- we shouldn't be ensuring crafting table nearby or furnace nearby or any of this logic, look at the logic i have below for the next bullet point.
+	- some extra notes are that we can use #goto to automatically open a container once reaching the destination so that we don't have to implement logic for manually right clicking something to open its gui
+		- for example, we can use #goto crafting_table while right next to a crafting table (assuming we have the proper baritone setting enabled) to open it.
+		- we can also use #eta to determine (from the baritone chat output), how long it will take to reach a goal, which we can use to estimate distance.
+		- so one way we can determine if a specific block we want to interact with is in range is to do: '#goto crafting_table' then '#eta', then extract the data from baritones chat response (or log response) ("Next segment: 6.6s (131 ticks)\nGoal: 10.6s (213 ticks) and then do #stop if the eta is longer than some threshold we can set in the config.json.
+		- one thing to mention is that for some reason '#goto chest' doesn't actually go to the nearest chest always (or maybe I don't know how to get it to work), but for crafting tables and furnaces, i've tested that it does automatically open them.
+			- but i think this is okay for now, as we will be implementing getting items from chests later, we just need to keep track of which block contains which items at which location.
+	- there are a lot of hardcoded mappings in here for minecraft items, but like mentioned previously, we can get this from minecraft's raw recipes, if i'm not mistaken
+		- also, while we can get the derived recipes and crafting yields, i don't think that there is that information readily available for actually harvesting raw materials prior to crafting, so we will need to specify that information manually i think
+		- this also brings me to my next point, we should be storing these mappings in some json file, not in the code, so that we can keep the code simple and modular, and we can edit easily from the json if we need to expand methods to aquire items.
+		- there should be 4 main ways to aquire items: mining, crafting, chests, or killing if i'm not mistaken (at least the basics, not to include farming or others)
+- I'm noticing a lot of references to llm and v0 in the code comments. make sure to remove all references as I don't want to mention v0 or llms
+- in intents.py, i'm also noticing some hard coded mapping data, remember what I said before about keeping all mapping data in an appropriate json file.
+- in planner.py, remember what I mentioned before about data for mining yields most likely needing to be manually input by us, the same goes in this file with mining tool tier requirements (coal, stone needs wooden or better, iron, gold, etc needs iron or better, obsidian, ancient_debris needs diamond or better)
+- for security.py and tls.py, remember what i said before about removing these in favor of my new method.
+- for skill_graph.py, remember what i said before about hardcoded values being in json and getting the ground truth recipes from minecraft. it might even be possible to completely remove/combine this with the planner maybe?
+- for storage.py, remember what i said before about storage.
+- i'm also noticing v0 mentions in the documentation, remember what i said about removing all llm and v0 references in this project.
+
+
+3. calculate code coverage and revamp testing
+What is our current code coverage? I would like to raise this as much as possible so that our testing is more complete.
