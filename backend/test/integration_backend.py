@@ -45,7 +45,8 @@ async def main() -> int:
         await send_json(ws, {
             "type": "handshake",
             "seq": 1,
-            "player_id": PLAYER_ID,
+            "player_uuid": PLAYER_ID,
+            "password": "testpw",
             "client_version": "test/0.1",
             "capabilities": {"test": True},
         })
@@ -73,7 +74,7 @@ async def main() -> int:
         }
         await send_json(ws, {
             "type": "telemetry_update",
-            "player_id": PLAYER_ID,
+            "player_uuid": PLAYER_ID,
             "ts": "2025-10-18T12:34:56Z",
             "state": telemetry,
         })
@@ -89,11 +90,11 @@ async def main() -> int:
         await send_json(ws, {
             "type": "state_request",
             "request_id": "req-state-1",
-            "player_id": PLAYER_ID,
+            "player_uuid": PLAYER_ID,
             "selector": ["inventory", "equipment"],
         })
         resp = await recv_until_type(ws, "state_response")
-        assert resp.get("player_id") == PLAYER_ID, "state_response player mismatch"
+        assert resp.get("player_uuid") == PLAYER_ID, "state_response player mismatch"
         assert isinstance(resp.get("state"), dict), "state_response state missing"
         print("[ok] state_request/response")
         passed += 1
@@ -103,7 +104,7 @@ async def main() -> int:
             "type": "command",
             "request_id": "req-echo-1",
             "text": "!echo hello world",
-            "player_id": PLAYER_ID,
+            "player_uuid": PLAYER_ID,
         })
         echo = await recv_until_type(ws, "chat_send")
         assert echo.get("text") == "hello world", "echo text mismatch"
@@ -115,7 +116,7 @@ async def main() -> int:
             "type": "command",
             "request_id": "req-help-1",
             "text": "!help",
-            "player_id": PLAYER_ID,
+            "player_uuid": PLAYER_ID,
         })
         helpmsg = await recv_until_type(ws, "chat_send")
         assert "Available commands" in helpmsg.get("text", ""), "help text missing"
@@ -127,7 +128,7 @@ async def main() -> int:
             "type": "command",
             "request_id": "req-mcast-1",
             "text": "!echomulti tester !echo hello",
-            "player_id": PLAYER_ID,
+            "player_uuid": PLAYER_ID,
         })
         mcast = await recv_until_type(ws, "chat_send")
         assert mcast.get("text") == "hello", "multicast payload mismatch"
@@ -139,7 +140,7 @@ async def main() -> int:
             "type": "command",
             "request_id": "req-craft-1",
             "text": "!get iron pickaxe 1",
-            "player_id": PLAYER_ID,
+            "player_uuid": PLAYER_ID,
         })
         plan = await recv_until_type(ws, "plan")
         assert isinstance(plan.get("steps"), list) and plan["steps"], "empty plan"

@@ -20,46 +20,34 @@ Type chat commands in Minecraft Java and watch an in-game agent execute tasks en
 - Flow: `!command` → mod sends JSON → backend parses → planner emits steps → backend streams actions → mod executes → telemetry/progress update.
 
 ## Configuration
-Use a single JSON file `config.json` at the project root. No environment variables or per-client mod files are used. This file is required and must include both server settings and client_settings for the mod.
+Use a single JSON file `settings/config.json`. No environment variables or per-client mod files are used. This file is required and must include both server and client runtime keys (flattened).
 
-Policy: All runtime tunables are sourced exclusively from `config.json`. There are no hardcoded defaults or fallbacks in code. If a required key is missing, the backend will error at startup so you can fix the configuration explicitly.
+Policy: All runtime tunables are sourced exclusively from `settings/config.json`. There are no hardcoded defaults or fallbacks in code. If a required key is missing, the backend will error at startup so you can fix the configuration explicitly.
 
 See the configuration reference for all parameters and meanings: `docs/config.md`.
 
-Example `config.json` (full):
+Example `settings/config.json` (full):
 ```json
 {
   "host": "127.0.0.1",
   "port": 8765,
   "log_level": "INFO",
-  "auth_token": null,
-  "allow_remote": false,
-  "tls_enabled": false,
-  "tls_cert_file": null,
-  "tls_key_file": null,
+  "password": "changeme",
   "max_chat_sends_per_sec": 5,
-  "default_retry_attempts": 3,
-  "default_retry_backoff_ms": 500,
-  "default_action_timeout_ms": 30000,
   "default_action_spacing_ms": 200,
-  "idle_shutdown_seconds": 0,
   "acquire_poll_interval_ms": 500,
-  "acquire_timeout_per_item_ms": 3000,
-  "acquire_min_timeout_ms": 30000,
-  "client_settings": {
-    "backend_url": "ws://127.0.0.1:8765",
-    "telemetry_interval_ms": 500,
-    "chat_bridge_enabled": true,
-    "chat_bridge_rate_limit_per_sec": 2,
-    "command_prefix": "!",
-    "echo_public_default": false,
-    "ack_on_command": true,
-    "message_pump_max_per_tick": 64,
-    "message_pump_queue_cap": 2048,
-    "inventory_diff_debounce_ms": 150,
-    "chat_max_length": 256,
-    "crafting_click_delay_ms": 40
-  }
+  "telemetry_interval_ms": 500,
+  "chat_bridge_enabled": true,
+  "chat_bridge_rate_limit_per_sec": 2,
+  "command_prefix": "!",
+  "echo_public_default": false,
+  "ack_on_command": true,
+  "feedback_prefix": "[auto-mc] ",
+  "message_pump_max_per_tick": 64,
+  "message_pump_queue_cap": 2048,
+  "inventory_diff_debounce_ms": 150,
+  "chat_max_length": 256,
+  "crafting_click_delay_ms": 40
 }
 ```
 
@@ -96,7 +84,7 @@ After this, build with the wrapper:
 ### Setup (TL;DR)
 - Clone repo; open PowerShell in project root.
 - Ensure Python 3.10+ and JDK 21 available.
-- Create `config.json` (see full example below, include client runtime keys).
+- Create `settings/config.json` (see full example below, include client runtime keys).
 - Install Python deps: `pip install websockets` (system Python; no venvs).
 - Start backend: `./run_backend.ps1`.
 - Build mod: `./build_mod.ps1`.
@@ -113,7 +101,7 @@ java -version
 ```
 
 1) Backend: setup and run
-- Create `config.json` in the project root using the example in Configuration.
+- Create `settings/config.json` using the example in Configuration.
 - Install Python dependencies to your main interpreter:
 ```powershell
 pip install websockets
@@ -136,7 +124,7 @@ Tips
 - AutoMC in-game help: `!help`; Repo: https://github.com/dross1-dross1/auto-mc.
 - Baritone in-game help: `#help`; Repo: https://github.com/cabaletta/baritone.
 - Wurst in-game help: `.help`; Repo: https://github.com/Wurst-Imperium/Wurst7.
-- Planner inspiration: Plan4MC https://github.com/PKU-RL/Plan4MC.
+ 
 
 ## Developer workflow
 
@@ -161,9 +149,9 @@ Commands recap:
 - All tests: `./run_tests.ps1`
 - Backend unit tests: `python -m unittest discover -s backend/test -p test_*.py -q`
 - Java tests: `cd fabric-mod; (./gradlew|.\gradlew.bat) --no-daemon test`
-- Backend integration check: `python tests/integration_backend.py`
+- Backend integration check: `python backend/test/integration_backend.py`
 
 ## Security and observability
 - Sanitize/escape outbound chat; never echo arbitrary backend input to public chat.
-- Optional shared `AUTH_TOKEN` for non-local agents; optional TLS when remote.
+- Shared `password` for clients; TLS removed per simplified model.
 - Structured logs and lightweight metrics (Requests/Errors/Duration). Rate limits and message size caps.

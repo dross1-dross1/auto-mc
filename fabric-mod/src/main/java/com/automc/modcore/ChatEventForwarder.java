@@ -25,7 +25,7 @@ final class ChatEventForwarder {
                 if (!shouldForward(text)) return;
                 JsonObject evt = new JsonObject();
                 evt.addProperty("type", Protocol.TYPE_CHAT_EVENT);
-                evt.addProperty("player_id", WebSocketClientManager.getInstance().getPlayerId());
+                evt.addProperty("player_uuid", WebSocketClientManager.getInstance().getPlayerId());
                 evt.addProperty("text", text);
                 evt.addProperty("ts", java.time.Instant.now().toString());
                 WebSocketClientManager.getInstance().sendJson(evt);

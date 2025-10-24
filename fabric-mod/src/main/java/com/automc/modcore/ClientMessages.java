@@ -18,7 +18,7 @@ final class ClientMessages {
         JsonObject obj = new JsonObject();
         obj.addProperty("type", Protocol.TYPE_STATE_RESPONSE);
         obj.addProperty("request_id", requestId);
-        obj.addProperty("player_id", playerId);
+        obj.addProperty("player_uuid", playerId);
         obj.add("state", state);
         return obj;
     }

@@ -31,17 +31,17 @@ Small, deterministic system to accept chat commands, produce explicit plans, and
 
 Wire protocol (selected messages)
 - handshake
-  - { type, seq, player_id, auth_token?, client_version, capabilities }
+  - { type, seq, player_uuid, password, client_version, capabilities }
 - settings_update / settings_broadcast
-  - { type, seq, player_id? (optional for all), settings: { telemetry_interval_ms, rate_limit_chat, baritone: {...}, wurst: {...} } }
+  - { type, seq, settings: { telemetry_interval_ms, rate_limit_chat, baritone: {...}, wurst: {...} } }
 - task_assign
-  - { type, seq, request_id, player_id, intent | plan }
+  - { type, seq, request_id, player_uuid, intent | plan }
 - handoff
-  - { type, seq, from_player_id, to_player_id, chest: { dim,pos }, items: [{ id, count, nbt? }] }
+  - { type, seq, from_player_uuid, to_player_uuid, chest: { dim,pos }, items: [{ id, count, nbt? }] }
 - progress_update (extend)
   - { type, seq, action_id, status, note?, eta_ms? }
 
-Action table (v0 excerpt)
+Action table (excerpt)
 - navigate_to: pre near-free path; post within tolerance; timeout dynamic by distance.
 - mine: pre tool available and target known; post items collected or target absent; retries with new tool if policy.
 - place: pre has blocks; post block at pos; rollback if occupied by wrong block (policy).
@@ -77,14 +77,14 @@ Failure semantics
 - Cancellation: backend can send `cancel` to stop current action chain; mod sends `ok` when halted.
 
 Multi-agent
-- One WebSocket per `player_id`; dispatcher per agent.
+- One WebSocket per `player_uuid`; dispatcher per agent.
 - Shared claims: rectangular areas and scarce resources have simple leases; collisions avoided by deny-and-retry.
 - Fairness: round-robin step dispatch across active agents.
 
 Security & observability
 - Sanitize/escape outbound chat; never echo arbitrary backend input to public chat.
-- Structured logs with `request_id`, `action_id`, `player_id`; lightweight metrics for Requests/Errors/Duration.
- - Auth & remote: optional shared `auth_token` in `handshake` for non-local connections; allow remote by config; optional TLS when backend is remote.
+- Structured logs with `request_id`, `action_id`, `player_uuid`; lightweight metrics for Requests/Errors/Duration.
+- Auth: shared `password` in `handshake`.
  - Rate limits: configurable max chat sends/sec and message size caps.
 
 ---
@@ -107,7 +107,7 @@ Security & observability
 
 #### Backend (modules)
  - Gateway Server
-  - WebSocket endpoints; auth token validation; TLS optional; per-agent session with seq tracking.
+  - WebSocket endpoints; per-agent session with seq tracking.
   - Health and optional Web UI (monitor agents, plans, actions; broadcast settings).
 - State Service
   - Agent registry; last telemetry; connection health; settings to apply.
@@ -130,17 +130,17 @@ Security & observability
 
 Wire protocol (selected messages)
 - handshake
-  - { type, seq, player_id, auth_token?, client_version, capabilities }
+  - { type, seq, player_uuid, password, client_version, capabilities }
 - settings_update / settings_broadcast
-  - { type, seq, player_id? (optional for all), settings: { telemetry_interval_ms, rate_limit_chat, baritone: {...}, wurst: {...} } }
+  - { type, seq, settings: { telemetry_interval_ms, rate_limit_chat, baritone: {...}, wurst: {...} } }
 - task_assign
-  - { type, seq, request_id, player_id, intent | plan }
+  - { type, seq, request_id, player_uuid, intent | plan }
 - handoff
-  - { type, seq, from_player_id, to_player_id, chest: { dim,pos }, items: [{ id, count, nbt? }] }
+  - { type, seq, from_player_uuid, to_player_uuid, chest: { dim,pos }, items: [{ id, count, nbt? }] }
 - progress_update (extend)
   - { type, seq, action_id, status, note?, eta_ms? }
 
-Action table (v0 excerpt)
+Action table (excerpt)
 - navigate_to: pre near-free path; post within tolerance; timeout dynamic by distance.
 - mine: pre tool available and target known; post items collected or target absent; retries with new tool if policy.
 - place: pre has blocks; post block at pos; rollback if occupied by wrong block (policy).
@@ -160,8 +160,7 @@ Timing and reliability
 - Resume: on reconnect, backend resends last pending action; agent replays last `progress_update`.
 
 Security
-- Auth token required for non-local connections; TLS optional but recommended for remote.
-- Message size caps; rate limits; strict schema validation server-side.
+- Shared password in handshake; message size caps; rate limits; strict schema validation server-side.
 
 ---
 
@@ -210,7 +209,7 @@ Build this:
     - wait (ms), set_hotbar (slot)
     - collect_drops (radius), throw (item,count), sneak/sprint toggles
     - build_from_schematic (worldedit .schem via Baritone builder; Litematica optional future integration)
-  - Confirm each action with a success/fail and a short note. v0 implements 2x2 crafting for `minecraft:oak_planks`, `minecraft:stick`, and `minecraft:crafting_table` using client inventory interactions.
+  - Confirm each action with a success/fail and a short note. Initial implementation supports 2x2 crafting for `minecraft:oak_planks`, `minecraft:stick`, and `minecraft:crafting_table` using client inventory interactions.
   
 - Persistence
   - No local config files; runtime settings updates adjust telemetry interval, echo policy, and chat rate limit; Baritone settings applied via `#set`.
@@ -246,9 +245,9 @@ Build this:
   - Stream steps one at a time to the mod, wait for confirmation, then send the next.
   - On fail, either retry or emit a clear message about what is missing; support `cancel`, `pause`, and `resume`.
  - Multi-agent
-  - One controller per `player_id`; concurrent connections; shared world model with simple claims and fair scheduling.
+- One controller per `player_uuid`; concurrent connections; shared world model with simple claims and fair scheduling.
 - Progress + resume
-  - Keep a lightweight record (e.g., a JSON file) for request status, current step, and inventory snapshot. v0 server correlates `action_id` with `{request_id, step}` for logs and basic bookkeeping.
+  - Keep a lightweight record (e.g., a JSON file) for request status, current step, and inventory snapshot. The server correlates `action_id` with `{request_id, step}` for logs and basic bookkeeping.
 
 Notes:
 - Keep everything in plain functions and simple modules. Avoid frameworks.
@@ -264,7 +263,7 @@ Incoming chat → intent
   "type": "command",
   "request_id": "uuid",
   "text": "!get iron pickaxe 1",
-  "player_id": "player-1"
+  "player_uuid": "player-1"
 }
 ```
 
@@ -306,7 +305,7 @@ Telemetry update (from mod):
 ```json
 {
   "type": "telemetry_update",
-  "player_id": "<uuid>",
+  "player_uuid": "<uuid>",
   "ts": "2025-10-18T12:34:56Z",
   "state": {
     "pos": [0, 64, 0],
@@ -329,18 +328,18 @@ Telemetry update (from mod):
 
 State request/response:
 ```json
-{ "type": "state_request", "request_id": "uuid", "player_id": "player-1", "selector": ["inventory","equipment"] }
+{ "type": "state_request", "request_id": "uuid", "player_uuid": "player-1", "selector": ["inventory","equipment"] }
 ```
 ```json
-{ "type": "state_response", "request_id": "uuid", "player_id": "player-1", "state": { "inventory": [], "equipment": {} } }
+{ "type": "state_response", "request_id": "uuid", "player_uuid": "player-1", "state": { "inventory": [], "equipment": {} } }
 ```
 
 Chat bridge:
 ```json
-{ "type": "chat_send", "request_id": "uuid", "player_id": "player-1", "text": "#mine iron_ore" }
+{ "type": "action_request", "action_id": "uuid", "mode": "chat_bridge", "op": "chat", "chat_text": "#mine iron_ore" }
 ```
 ```json
-{ "type": "chat_event", "player_id": "player-1", "text": "[Baritone] Mining iron_ore...", "ts": "2025-10-18T12:35:00Z" }
+{ "type": "chat_event", "player_uuid": "player-1", "text": "[Baritone] Mining iron_ore...", "ts": "2025-10-18T12:35:00Z" }
 ```
 
 
@@ -352,10 +351,11 @@ Action to mod (mod-native):
 ```json
 { "type": "action_request", "action_id": "uuid", "mode": "mod_native", "op": "craft", "recipe": "minecraft:iron_pickaxe", "count": 1 }
 ```
-Semantics in v0:
-- For `mode=chat_bridge`, the client sends the `text` to chat and immediately replies with `progress_update {status: ok|skipped}` based on local rate limit.
+Semantics:
+- For `mode=chat_bridge`, the client sends the `chat_text` and immediately replies with `progress_update {status: ok|skipped}` based on local rate limit.
 - For `mode=mod_native`:
   - `craft` supports 2x2-only recipes initially (`minecraft:planks`, `minecraft:stick`, `minecraft:crafting_table`).
+  - If a 3x3 context is required and not present (no crafting table UI open), the client replies with `progress_update {status: skipped, note: "awaiting crafting table context"}`. The backend ensures context via Baritone (`#set rightClickContainerOnArrival true` then `#goto crafting_table` and optional `#eta`).
   - If unimplemented or inputs missing, the client replies with `progress_update {status: skipped|fail, note}`.
   - Future: add ensure-context (`crafting_table_nearby`, `furnace_nearby`) and full 3x3 crafting/smelting with placement/interact.
 
@@ -363,7 +363,7 @@ Shared storage: container inventory snapshot
 ```json
 {
   "type": "inventory_snapshot",
-  "player_id": "player-1",
+  "player_uuid": "player-1",
   "container": {
     "dim": "minecraft:overworld",
     "pos": [123, 64, -45],
@@ -382,7 +382,7 @@ Shared storage: delta update
 ```json
 {
   "type": "inventory_diff",
-  "player_id": "player-1",
+  "player_uuid": "player-1",
   "container_key": { "dim": "minecraft:overworld", "pos": [123,64,-45] },
   "from_version": 7,
   "to_version": 8,
@@ -404,7 +404,7 @@ Start with:
 
 Small, correct, and boring beats clever here.
 
-Known gaps and next steps (v0):
+Known gaps and next steps:
 - Recipe ingestion: ingest vanilla JSON recipes/tags to avoid hardcoding in `backend/skill_graph.py`; generate skill nodes for craft/smelt and use tags (e.g., logs) for interchangeable inputs.
 - 2x2 vs 3x3 separation: client currently only acknowledges 2x2 `craft` ops; full 3x3 crafting and smelting will require mod-native UI logic after ensure via Baritone navigate (`#goto`).
 - Acquire coalescing: consecutive duplicate acquires are coalesced to reduce repeated `#mine` sends; future: inventory-aware planning to skip already-satisfied items.
@@ -429,15 +429,15 @@ Outcome: Run two or more agents concurrently without tripping over each other, i
 
 ### Configuration
 
-Use a single `config.json` for the backend and runtime client settings.
+Use a single `settings/config.json` for the backend and runtime client settings (flattened). No environment variables or per-client mod config files are used.
 
-Backend: `config.json` in project root (single source of truth, required)
-- `host`, `port`, `log_level`, `auth_token`, `allow_remote`, `tls_enabled`, `tls_cert_file`, `tls_key_file`
-- `max_chat_sends_per_sec`, `default_retry_attempts`, `default_retry_backoff_ms`, `default_action_timeout_ms`, `default_action_spacing_ms`, `idle_shutdown_seconds`
-- `client_settings`: baseline applied to clients at runtime via `settings_update` (see below)
-Policy: No hardcoded defaults or fallbacks in code. All tunables must be present in `config.json`; missing required keys cause startup errors. This ensures explicit, reproducible behavior.
+Backend: `settings/config.json` (single source of truth, required)
+- `host`, `port`, `log_level`, `password`
+- `max_chat_sends_per_sec`, `default_action_spacing_ms`, `acquire_poll_interval_ms`
+- flattened client settings applied at handshake via `settings_update` (e.g., `telemetry_interval_ms`, `chat_bridge_enabled`, `chat_bridge_rate_limit_per_sec`, `command_prefix`, `echo_public_default`, `ack_on_command`, `feedback_prefix`, `message_pump_max_per_tick`, `message_pump_queue_cap`, `inventory_diff_debounce_ms`, `chat_max_length`, `crafting_click_delay_ms`)
+Policy: No hardcoded defaults or fallbacks in code. Missing required keys cause startup errors.
 
-Mod: stateless; no per-client file. Runtime behavior (backend URL, telemetry interval, chat rate limit, echo policy, command prefix) is controlled by `client_settings` and subsequent `settings_update` messages.
+Mod: stateless; runtime behavior is controlled by the backend `settings_update` messages.
 
 No secrets in the repo.
 
@@ -479,13 +479,13 @@ Code organization (Java/Fabric)
 - Mod ID: lowercase 8–64 chars, letters/numbers/dash/underscore; consistent across `fabric.mod.json` and packages.
 
 Error handling and logging
-- Log4j (Fabric default) with structured fields (`player_id`, `request_id`, `action_id`).
+- Log4j (Fabric default) with structured fields (`player_uuid`, `request_id`, `action_id`).
 - Guard MC calls with meaningful try/catch and short, actionable logs; no silent failures.
 - Backend: structured logs (JSON preferred) with request/agent correlation.
 
 Client–server trust boundaries
 - Never trust the client: backend validates schemas, sizes, and rates; ignores unsafe requests.
-- Mod sanitizes outbound chat; backend requires `auth_token` for remote; optional TLS.
+- Mod sanitizes outbound chat; backend uses shared `password` in handshake.
 
 Performance and profiling
 - Keep telemetry cheap; avoid heavy NBT serialization every tick; honor debounce and size caps.

@@ -3,9 +3,9 @@ $ErrorActionPreference = 'Stop'
 # Always use system Python; no venv support
 Set-Location -LiteralPath $PSScriptRoot
 
-# Guard: require config.json so failures don't flash and close
-if (-not (Test-Path -LiteralPath (Join-Path $PSScriptRoot 'config.json'))) {
-    Write-Host 'config.json not found in project root. Create it using the example in README.' -ForegroundColor Yellow
+# Guard: require settings/config.json so failures don't flash and close
+if (-not (Test-Path -LiteralPath (Join-Path $PSScriptRoot 'settings/config.json'))) {
+    Write-Host 'settings/config.json not found. Create it using the example in README.' -ForegroundColor Yellow
     Read-Host -Prompt 'Press Enter to exit'
     exit 1
 }
@@ -44,7 +44,7 @@ if (Get-Command python -ErrorAction SilentlyContinue) {
 if ($exitCode -ne 0) {
     Write-Host ("Backend exited with code {0}. Common causes:" -f $exitCode) -ForegroundColor Yellow
     Write-Host ' - Missing Python package: install with: pip install websockets'
-    Write-Host ' - Invalid or missing config.json keys: see docs/config.md'
+    Write-Host ' - Invalid or missing settings/config.json keys: see docs/config.md'
     Read-Host -Prompt 'Press Enter to exit'
 }
 

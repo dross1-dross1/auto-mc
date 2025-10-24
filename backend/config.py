@@ -20,22 +20,25 @@ class Settings:
     host: str
     port: int
     log_level: str
-    auth_token: Optional[str]
-    allow_remote: bool
-    tls_enabled: bool
-    tls_cert_file: Optional[str]
-    tls_key_file: Optional[str]
+    password: str
     max_chat_sends_per_sec: int
-    default_retry_attempts: int
-    default_retry_backoff_ms: int
-    default_action_timeout_ms: int
     default_action_spacing_ms: int
-    idle_shutdown_seconds: int
-    client_settings: dict
+    # Client runtime settings (flattened)
+    telemetry_interval_ms: int
+    chat_bridge_enabled: bool
+    chat_bridge_rate_limit_per_sec: int
+    command_prefix: str
+    echo_public_default: bool
+    ack_on_command: bool
+    feedback_prefix: str
+    message_pump_max_per_tick: int
+    message_pump_queue_cap: int
+    inventory_diff_debounce_ms: int
+    chat_max_length: int
+    crafting_click_delay_ms: int
     # Backend behavioral tuning
     acquire_poll_interval_ms: int
-    acquire_timeout_per_item_ms: int
-    acquire_min_timeout_ms: int
+    # Timeouts removed
 
 
 def _as_bool(value, default: bool) -> bool:
@@ -54,57 +57,53 @@ def load_settings() -> Settings:
 
     No environment variables or fallbacks are used; the file must exist and contain the required keys.
     """
-    cfg_path = Path("config.json")
+    cfg_path = Path("settings/config.json")
     if not cfg_path.exists():
-        raise FileNotFoundError("config.json not found in project root")
+        raise FileNotFoundError("settings/config.json not found in project root")
     try:
         data = json.loads(cfg_path.read_text(encoding="utf-8"))
     except Exception as e:
-        raise RuntimeError(f"failed to parse config.json: {e}")
+        raise RuntimeError(f"failed to parse settings/config.json: {e}")
 
     def gv(key: str, default):
         return data.get(key, default)
 
     required_keys = [
-        "host","port","log_level","allow_remote","tls_enabled",
-        "tls_cert_file","tls_key_file","max_chat_sends_per_sec",
-        "default_retry_attempts","default_retry_backoff_ms",
-        "default_action_timeout_ms","default_action_spacing_ms",
-        "idle_shutdown_seconds","client_settings",
+        "host","port","log_level","password",
+        "max_chat_sends_per_sec",
+        "default_action_spacing_ms",
+        # flattened client settings
+        "telemetry_interval_ms","chat_bridge_enabled","chat_bridge_rate_limit_per_sec",
+        "command_prefix","echo_public_default","ack_on_command","feedback_prefix",
+        "message_pump_max_per_tick","message_pump_queue_cap","inventory_diff_debounce_ms",
+        "chat_max_length","crafting_click_delay_ms",
+        # backend tuning
+        "acquire_poll_interval_ms",
     ]
     missing = [k for k in required_keys if k not in data]
     if missing:
-        raise KeyError(f"config.json missing required keys: {', '.join(missing)}")
-
-    client_settings = data.get("client_settings")
-    for ck in [
-        "telemetry_interval_ms","chat_bridge_enabled","chat_bridge_rate_limit_per_sec",
-        "command_prefix","echo_public_default","ack_on_command",
-        "message_pump_max_per_tick","message_pump_queue_cap","inventory_diff_debounce_ms",
-        "chat_max_length","crafting_click_delay_ms",
-    ]:
-        if ck not in client_settings:
-            raise KeyError(f"config.json client_settings missing key: {ck}")
+        raise KeyError(f"settings/config.json missing required keys: {', '.join(missing)}")
 
     settings = Settings(
         host=str(gv("host", None)),
         port=int(gv("port", None)),
         log_level=str(gv("log_level", None)).upper(),
-        auth_token=gv("auth_token", None),
-        allow_remote=_as_bool(gv("allow_remote", None), False),
-        tls_enabled=_as_bool(gv("tls_enabled", None), False),
-        tls_cert_file=gv("tls_cert_file", None),
-        tls_key_file=gv("tls_key_file", None),
+        password=str(gv("password", None)),
         max_chat_sends_per_sec=int(gv("max_chat_sends_per_sec", None)),
-        default_retry_attempts=int(gv("default_retry_attempts", None)),
-        default_retry_backoff_ms=int(gv("default_retry_backoff_ms", None)),
-        default_action_timeout_ms=int(gv("default_action_timeout_ms", None)),
         default_action_spacing_ms=int(gv("default_action_spacing_ms", None)),
-        idle_shutdown_seconds=int(gv("idle_shutdown_seconds", None)),
-        client_settings=dict(client_settings),
+        telemetry_interval_ms=int(gv("telemetry_interval_ms", None)),
+        chat_bridge_enabled=_as_bool(gv("chat_bridge_enabled", None), False),
+        chat_bridge_rate_limit_per_sec=int(gv("chat_bridge_rate_limit_per_sec", None)),
+        command_prefix=str(gv("command_prefix", None)),
+        echo_public_default=_as_bool(gv("echo_public_default", None), False),
+        ack_on_command=_as_bool(gv("ack_on_command", None), False),
+        feedback_prefix=str(gv("feedback_prefix", None)),
+        message_pump_max_per_tick=int(gv("message_pump_max_per_tick", None)),
+        message_pump_queue_cap=int(gv("message_pump_queue_cap", None)),
+        inventory_diff_debounce_ms=int(gv("inventory_diff_debounce_ms", None)),
+        chat_max_length=int(gv("chat_max_length", None)),
+        crafting_click_delay_ms=int(gv("crafting_click_delay_ms", None)),
         acquire_poll_interval_ms=int(data["acquire_poll_interval_ms"]),
-        acquire_timeout_per_item_ms=int(data["acquire_timeout_per_item_ms"]),
-        acquire_min_timeout_ms=int(data["acquire_min_timeout_ms"]),
     )
     return settings
 

@@ -22,7 +22,6 @@ import org.java_websocket.client.WebSocketClient;
 import org.java_websocket.handshake.ServerHandshake;
 
 import java.net.URI;
-import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -32,7 +31,7 @@ public final class WebSocketClientManager {
     private static final WebSocketClientManager INSTANCE = new WebSocketClientManager();
 
     private WebSocketClient client;
-    private ModConfig config;
+    private volatile boolean connected = false;
     private long lastChatSendMillis = 0L;
     private final ExecutorService sendExec = Executors.newSingleThreadExecutor(r -> {
         Thread t = new Thread(r, "AutoMC-WS-Send");
@@ -46,80 +45,73 @@ public final class WebSocketClientManager {
     });
     private volatile boolean telemetryRunning = false;
     // Runtime overrides applied via settings_update
+    private volatile Boolean chatBridgeEnabledOverride = null;
     private volatile Integer chatRateLimitPerSecOverride = null;
     private volatile Boolean echoPublicDefaultOverride = null;
+    private volatile String commandPrefixOverride = null;
+    private volatile Boolean ackOnCommandOverride = null;
     private volatile Integer telemetryIntervalMsOverride = null;
     private volatile Integer messagePumpMaxPerTickOverride = null;
     private volatile Integer messagePumpQueueCapOverride = null;
     private volatile Integer inventoryDiffDebounceMsOverride = null;
     private volatile Integer chatMaxLengthOverride = null;
+    private volatile String feedbackPrefixOverride = null;
 
     private WebSocketClientManager() {}
 
     public static WebSocketClientManager getInstance() { return INSTANCE; }
 
     public String getPlayerId() {
-        try {
-            net.minecraft.client.MinecraftClient mc = net.minecraft.client.MinecraftClient.getInstance();
-            if (mc != null && mc.player != null) {
-                return mc.player.getUuidAsString();
-            }
-        } catch (Throwable ignored) {}
-        // Fallback to a stable random UUID for the process lifetime if not in-game yet
-        return java.util.UUID.nameUUIDFromBytes(("autmc-" + System.getProperty("user.name", "unknown")).getBytes(java.nio.charset.StandardCharsets.UTF_8)).toString();
+        net.minecraft.client.MinecraftClient mc = net.minecraft.client.MinecraftClient.getInstance();
+        if (mc == null || mc.player == null) {
+            throw new IllegalStateException("player uuid unavailable before world join");
+        }
+        return mc.player.getUuidAsString();
     }
 
-    public String getConfigOrDefaultCommandPrefix(String def) {
-        return (this.config != null && this.config.commandPrefix != null && !this.config.commandPrefix.isEmpty()) ? this.config.commandPrefix : def;
+    public String getCommandPrefixOrNull() { return this.commandPrefixOverride; }
+
+    public boolean getEchoPublicDefault() { return this.echoPublicDefaultOverride != null && this.echoPublicDefaultOverride.booleanValue(); }
+
+    public int getChatRateLimitPerSecEffective() { return (this.chatRateLimitPerSecOverride != null) ? this.chatRateLimitPerSecOverride.intValue() : 0; }
+
+    public boolean getAckOnCommandEnabled() { return this.ackOnCommandOverride != null && this.ackOnCommandOverride.booleanValue(); }
+
+    public int getTelemetryIntervalMsEffective() { if (this.telemetryIntervalMsOverride == null) throw new IllegalStateException("telemetry_interval_ms not set"); return this.telemetryIntervalMsOverride.intValue(); }
+
+    public int getMessagePumpMaxPerTick() { if (this.messagePumpMaxPerTickOverride == null) throw new IllegalStateException("message_pump_max_per_tick not set"); return this.messagePumpMaxPerTickOverride.intValue(); }
+
+    public int getMessagePumpQueueCap() { if (this.messagePumpQueueCapOverride == null) throw new IllegalStateException("message_pump_queue_cap not set"); return this.messagePumpQueueCapOverride.intValue(); }
+
+    public int getInventoryDiffDebounceMs() { if (this.inventoryDiffDebounceMsOverride == null) throw new IllegalStateException("inventory_diff_debounce_ms not set"); return this.inventoryDiffDebounceMsOverride.intValue(); }
+
+    public int getChatMaxLengthOrZero() { return (this.chatMaxLengthOverride != null) ? this.chatMaxLengthOverride.intValue() : 0; }
+
+    public String getFeedbackPrefixOrEmpty() { return this.feedbackPrefixOverride != null ? this.feedbackPrefixOverride : ""; }
+
+    public boolean areSettingsApplied() {
+        return this.telemetryIntervalMsOverride != null
+            && this.messagePumpMaxPerTickOverride != null
+            && this.messagePumpQueueCapOverride != null
+            && this.chatBridgeEnabledOverride != null
+            && this.chatRateLimitPerSecOverride != null
+            && this.commandPrefixOverride != null
+            && this.ackOnCommandOverride != null
+            && this.inventoryDiffDebounceMsOverride != null;
     }
 
-    public boolean getEchoPublicDefault() {
-        if (this.echoPublicDefaultOverride != null) return this.echoPublicDefaultOverride.booleanValue();
-        return this.config != null && this.config.echoPublicDefault;
-    }
-
-    public int getChatRateLimitPerSecEffective() {
-        if (this.chatRateLimitPerSecOverride != null) return this.chatRateLimitPerSecOverride.intValue();
-        return (this.config != null) ? this.config.chatBridgeRateLimitPerSec : 0;
-    }
-
-    public boolean getAckOnCommandEnabled() {
-        return this.config != null && this.config.ackOnCommand;
-    }
-
-    public int getTelemetryIntervalMsEffective() {
-        if (this.telemetryIntervalMsOverride != null) return this.telemetryIntervalMsOverride.intValue();
-        return (this.config != null) ? this.config.telemetryIntervalMs : 500;
-    }
-
-    public int getMessagePumpMaxPerTick() {
-        return (this.messagePumpMaxPerTickOverride != null) ? this.messagePumpMaxPerTickOverride.intValue() : 64;
-    }
-
-    public int getMessagePumpQueueCap() {
-        return (this.messagePumpQueueCapOverride != null) ? this.messagePumpQueueCapOverride.intValue() : 2048;
-    }
-
-    public int getInventoryDiffDebounceMs() {
-        return (this.inventoryDiffDebounceMsOverride != null) ? this.inventoryDiffDebounceMsOverride.intValue() : 150;
-    }
-
-    public int getChatMaxLength() {
-        return (this.chatMaxLengthOverride != null) ? this.chatMaxLengthOverride.intValue() : 256;
-    }
-
-    public synchronized void start(ModConfig config) {
-        this.config = config;
+    public synchronized void connect(String backendUrl, String password) {
         if (this.client != null && this.client.isOpen()) return;
         try {
-            URI uri = new URI(Objects.requireNonNullElse(config.backendUrl, "ws://127.0.0.1:8765"));
+            URI uri = new URI(backendUrl);
             this.client = new WebSocketClient(uri) {
                 @Override public void onOpen(ServerHandshake handshakeData) {
                     LOGGER.info("WS connected {}", uri);
                     JsonObject handshake = new JsonObject();
                     handshake.addProperty("type", Protocol.TYPE_HANDSHAKE);
                     handshake.addProperty("seq", 1);
-                    handshake.addProperty("player_id", getPlayerId());
+                    handshake.addProperty("player_uuid", getPlayerId());
+                    handshake.addProperty("password", password);
                     handshake.addProperty("client_version", "mod/0.1.0");
                     try {
                         net.minecraft.client.MinecraftClient mcClient = net.minecraft.client.MinecraftClient.getInstance();
@@ -127,28 +119,47 @@ public final class WebSocketClientManager {
                             handshake.addProperty("player_name", mcClient.player.getName().getString());
                         }
                     } catch (Throwable ignored) {}
-                    if (config.authToken != null && !config.authToken.isEmpty()) {
-                        handshake.addProperty("auth_token", config.authToken);
-                    }
                     JsonObject caps = new JsonObject();
                     caps.addProperty("chat_bridge", true);
                     caps.addProperty("mod_native_ensure", true);
                     handshake.add("capabilities", caps);
                     enqueueSend(GSON.toJson(handshake));
-                    // Baritone/Wurst settings are applied per action via settings_update or explicit chat commands
-                    // Start telemetry heartbeat
-                    startTelemetryHeartbeat();
                     // Send one immediate telemetry snapshot for early username adoption
                     try {
                         sendTelemetryOnce();
                     } catch (Throwable ignored) {}
+                    connected = true;
                 }
                 @Override public void onMessage(String message) {
-                    // Pump into a queue to be processed on client tick, not IO thread
+                    try {
+                        com.google.gson.JsonObject obj = GSON.fromJson(message, com.google.gson.JsonObject.class);
+                        if (obj != null && obj.has("type")) {
+                            String t = obj.get("type").getAsString();
+                            if (Protocol.TYPE_SETTINGS_UPDATE.equals(t) || Protocol.TYPE_SETTINGS_BROADCAST.equals(t)) {
+                                boolean first = !areSettingsApplied();
+                                if (obj.has("settings") && obj.get("settings").isJsonObject()) {
+                                    applySettings(obj.getAsJsonObject("settings"));
+                                }
+                                if (first) {
+                                    net.minecraft.client.MinecraftClient mc = net.minecraft.client.MinecraftClient.getInstance();
+                                    if (mc != null) {
+                                        mc.execute(() -> {
+                                            if (mc.inGameHud != null) {
+                                                mc.inGameHud.getChatHud().addMessage(net.minecraft.text.Text.of(getFeedbackPrefixOrEmpty() + "Connected to backend"));
+                                            }
+                                        });
+                                    }
+                                }
+                                return; // settings applied; no need to enqueue this
+                            }
+                        }
+                    } catch (Throwable ignored) {}
+                    // Pump non-settings messages into a queue to be processed on the client tick
                     MessagePump.enqueue(message);
                 }
                 @Override public void onClose(int code, String reason, boolean remote) {
                     LOGGER.info("WS closed: {} {} remote={} ", code, reason, remote);
+                    connected = false;
                 }
                 @Override public void onError(Exception ex) {
                     LOGGER.warn("WS error", ex);
@@ -159,6 +170,18 @@ public final class WebSocketClientManager {
             LOGGER.warn("failed to start WS: {}", e.toString());
         }
     }
+
+    public synchronized void disconnect() {
+        try {
+            telemetryRunning = false;
+            if (client != null) {
+                client.close();
+            }
+        } catch (Exception ignored) {}
+        connected = false;
+    }
+
+    public boolean isConnected() { return connected && client != null && client.isOpen(); }
 
     public void sendJson(JsonObject obj) { enqueueSend(GSON.toJson(obj)); }
 
@@ -201,7 +224,7 @@ public final class WebSocketClientManager {
 
                     JsonObject msg = new JsonObject();
                     msg.addProperty("type", Protocol.TYPE_TELEMETRY_UPDATE);
-        msg.addProperty("player_id", getPlayerId());
+        msg.addProperty("player_uuid", getPlayerId());
         msg.addProperty("ts", java.time.Instant.now().toString());
         msg.add("state", st);
         sendJson(msg);
@@ -249,8 +272,8 @@ public final class WebSocketClientManager {
     }
 
     public boolean trySendChatRateLimited(String text) {
-        if (!config.chatBridgeEnabled) return false;
         long now = System.currentTimeMillis();
+        if (this.chatBridgeEnabledOverride == null || !this.chatBridgeEnabledOverride.booleanValue()) return false;
         int rate = getChatRateLimitPerSecEffective();
         long minIntervalMs = (rate <= 0) ? 0 : (1000L / rate);
         if (minIntervalMs > 0 && (now - lastChatSendMillis) < minIntervalMs) {
@@ -264,27 +287,18 @@ public final class WebSocketClientManager {
     public void applySettings(com.google.gson.JsonObject settings) {
         if (settings == null) return;
         try {
-            if (settings.has("telemetry_interval_ms")) {
-                this.telemetryIntervalMsOverride = settings.get("telemetry_interval_ms").getAsInt();
-            }
-            if (settings.has("rate_limit_chat")) {
-                this.chatRateLimitPerSecOverride = settings.get("rate_limit_chat").getAsInt();
-            }
-            if (settings.has("echo_public_default")) {
-                this.echoPublicDefaultOverride = settings.get("echo_public_default").getAsBoolean();
-            }
-            if (settings.has("message_pump_max_per_tick")) {
-                this.messagePumpMaxPerTickOverride = settings.get("message_pump_max_per_tick").getAsInt();
-            }
-            if (settings.has("message_pump_queue_cap")) {
-                this.messagePumpQueueCapOverride = settings.get("message_pump_queue_cap").getAsInt();
-            }
-            if (settings.has("inventory_diff_debounce_ms")) {
-                this.inventoryDiffDebounceMsOverride = settings.get("inventory_diff_debounce_ms").getAsInt();
-            }
-            if (settings.has("chat_max_length")) {
-                this.chatMaxLengthOverride = settings.get("chat_max_length").getAsInt();
-            }
+            if (settings.has("telemetry_interval_ms")) this.telemetryIntervalMsOverride = settings.get("telemetry_interval_ms").getAsInt();
+            if (settings.has("chat_bridge_enabled")) this.chatBridgeEnabledOverride = settings.get("chat_bridge_enabled").getAsBoolean();
+            if (settings.has("chat_bridge_rate_limit_per_sec")) this.chatRateLimitPerSecOverride = settings.get("chat_bridge_rate_limit_per_sec").getAsInt();
+            if (settings.has("echo_public_default")) this.echoPublicDefaultOverride = settings.get("echo_public_default").getAsBoolean();
+            if (settings.has("command_prefix")) this.commandPrefixOverride = settings.get("command_prefix").getAsString();
+            if (settings.has("ack_on_command")) this.ackOnCommandOverride = settings.get("ack_on_command").getAsBoolean();
+            if (settings.has("message_pump_max_per_tick")) this.messagePumpMaxPerTickOverride = settings.get("message_pump_max_per_tick").getAsInt();
+            if (settings.has("message_pump_queue_cap")) this.messagePumpQueueCapOverride = settings.get("message_pump_queue_cap").getAsInt();
+            if (settings.has("inventory_diff_debounce_ms")) this.inventoryDiffDebounceMsOverride = settings.get("inventory_diff_debounce_ms").getAsInt();
+            if (settings.has("chat_max_length")) this.chatMaxLengthOverride = settings.get("chat_max_length").getAsInt();
+            if (settings.has("crafting_click_delay_ms")) { /* reserved */ }
+            if (settings.has("feedback_prefix")) this.feedbackPrefixOverride = settings.get("feedback_prefix").getAsString();
             if (settings.has("baritone") && settings.get("baritone").isJsonObject()) {
                 com.google.gson.JsonObject baritone = settings.getAsJsonObject("baritone");
                 for (java.util.Map.Entry<String, com.google.gson.JsonElement> e : baritone.entrySet()) {
@@ -292,6 +306,10 @@ public final class WebSocketClientManager {
                     String value = e.getValue().isJsonPrimitive() ? e.getValue().getAsString() : e.getValue().toString();
                     sendBaritoneSetting(key, value);
                 }
+            }
+            // Start telemetry heartbeat only after interval is known
+            if (!telemetryRunning && this.telemetryIntervalMsOverride != null && this.telemetryIntervalMsOverride.intValue() > 0) {
+                startTelemetryHeartbeat();
             }
             // Wurst settings can be handled here in the future
         } catch (Throwable t) {

@@ -1,0 +1,10 @@
+{
+  "minecraft:iron_ore": "iron_ore",
+  "minecraft:coal": "coal_ore",
+  "minecraft:coal_ore": "coal_ore",
+  "minecraft:cobblestone": "stone",
+  "minecraft:oak_planks": "oak_log",
+  "minecraft:stick": "oak_log"
+}
+
+

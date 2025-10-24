@@ -18,6 +18,8 @@ ContainerKey = Tuple[str, Tuple[int, int, int]]  # (dim, pos)
 @dataclass
 class ContainerState:
     version: int
+    container_type: str
+    ts_iso: str
     slots: Dict[int, Dict[str, Any]]  # slot index -> {id, count, nbt?}
 
 
@@ -40,6 +42,8 @@ class StorageCatalog:
     def handle_snapshot(self, player_id: str, container: Dict[str, Any]) -> None:
         key = self._key_from_snapshot(container)
         version = int(container.get("version", 0))
+        ctype = str(container.get("container_type", ""))
+        ts_iso = str(container.get("ts_iso", ""))
         slots_raw = container.get("slots", [])
         slots: Dict[int, Dict[str, Any]] = {}
         for s in slots_raw:
@@ -50,7 +54,7 @@ class StorageCatalog:
                 slots[idx] = {"id": iid, "count": cnt}
             except Exception:
                 continue
-        self._by_key[key] = ContainerState(version=version, slots=slots)
+        self._by_key[key] = ContainerState(version=version, container_type=ctype, ts_iso=ts_iso, slots=slots)
         self._save()
 
     def handle_diff(self, player_id: str, diff: Dict[str, Any]) -> None:
@@ -111,6 +115,8 @@ class StorageCatalog:
                 key = f"{dim}@{pos[0]},{pos[1]},{pos[2]}"
                 serial[key] = {
                     "version": st.version,
+                    "container_type": st.container_type,
+                    "ts_iso": st.ts_iso,
                     "slots": st.slots,
                 }
             self._path.write_text(json.dumps(serial, indent=2), encoding="utf-8")
@@ -129,9 +135,11 @@ class StorageCatalog:
                     dim, pos_s = key.split("@", 1)
                     x, y, z = [int(p) for p in pos_s.split(",", 3)]
                     version = int(data.get("version", 0))
+                    container_type = str(data.get("container_type", ""))
+                    ts_iso = str(data.get("ts_iso", ""))
                     slots_in = data.get("slots", {}) or {}
                     slots: Dict[int, Dict[str, Any]] = {int(k): v for k, v in slots_in.items()} if isinstance(slots_in, dict) else {}
-                    out[(dim, (x, y, z))] = ContainerState(version=version, slots=slots)
+                    out[(dim, (x, y, z))] = ContainerState(version=version, container_type=container_type, ts_iso=ts_iso, slots=slots)
                 except Exception:
                     continue
             self._by_key = out

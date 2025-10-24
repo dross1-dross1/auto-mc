@@ -3,7 +3,7 @@ from __future__ import annotations
 """Parse chat commands into deterministic intents.
 
 Purpose: Translate a small set of '!'-prefixed commands into explicit intent
-dicts for the planner/dispatcher, avoiding LLM dependence in v0.
+dicts for the planner/dispatcher.
 
 Supported patterns:
 - !echo <text>
@@ -30,26 +30,24 @@ def parse_command_text(text: str) -> Optional[Dict[str, object]]:
         return {"type": "stop"}
 
     if text.startswith("!echo "):
-        return {"type": "echo", "text": text[len("!echo ") :].strip()}
+        # Normalize nested echo forms by stripping repeated '!echo ' prefixes
+        payload = text[len("!echo ") :].strip()
+        while payload.startswith("!echo "):
+            payload = payload[len("!echo ") :].strip()
+        return {"type": "echo", "text": payload}
 
     m = re.match(r"^!get\s+(.+)\s+(\d+)$", text)
     if m:
         item_words = m.group(1).strip().lower().replace(" ", "_")
         count = int(m.group(2))
-        # Normalization: prefer concrete item ids matching game names
-        item_map = {
-            "iron_pickaxe": "minecraft:iron_pickaxe",
-            "iron_pick": "minecraft:iron_pickaxe",
-            "stick": "minecraft:stick",
-            "sticks": "minecraft:stick",
-            "oak_planks": "minecraft:oak_planks",
-            "planks": "minecraft:oak_planks",
-            "crafting_table": "minecraft:crafting_table",
-            "furnace": "minecraft:furnace",
-            "torch": "minecraft:torch",
-            "torches": "minecraft:torch",
-        }
-        item_id = item_map.get(item_words, item_words if ":" in item_words else f"minecraft:{item_words}")
+        # Normalization: resolve aliases from data file first, else assume minecraft: namespace
+        try:
+            from .data_files import load_aliases  # lazy import
+            aliases = load_aliases()
+        except Exception:
+            aliases = {}
+        base = aliases.get(item_words, item_words)
+        item_id = base if ":" in base else f"minecraft:{base}"
         return {"type": "craft_item", "item": item_id, "count": count}
 
     # !echomulti name1,name2 <message|#cmd|.cmd>

@@ -32,12 +32,14 @@ public final class MessageRouter {
             if (Protocol.TYPE_CHAT_SEND.equals(type)) {
                 String text = obj.get("text").getAsString();
                 boolean echoPublic = WebSocketClientManager.getInstance().getEchoPublicDefault();
-                // Do not broadcast unrecognized/error replies publicly; only send commands (#/.)
                 boolean isCommand = text.startsWith("#") || text.startsWith(".");
-                boolean sent = (isCommand || echoPublic) && WebSocketClientManager.getInstance().trySendChatRateLimited(text);
-                LOGGER.info("chat_send -> {} (sent={})", text, sent);
-                if (!isCommand && !echoPublic) {
-                    // Show locally in HUD without sending to public chat
+                boolean sent = false;
+                if (isCommand) {
+                    sent = WebSocketClientManager.getInstance().trySendChatRateLimited(text);
+                } else if (echoPublic) {
+                    sent = WebSocketClientManager.getInstance().trySendChatRateLimited(text);
+                } else {
+                    // Always show non-command chat_send locally in HUD
                     net.minecraft.client.MinecraftClient mc = net.minecraft.client.MinecraftClient.getInstance();
                     if (mc != null) {
                         mc.execute(() -> {
@@ -47,6 +49,7 @@ public final class MessageRouter {
                         });
                     }
                 }
+                LOGGER.info("chat_send -> {} (sent={})", text, sent);
                 return;
             }
             if (Protocol.TYPE_ACTION_REQUEST.equals(type)) {
@@ -64,7 +67,7 @@ public final class MessageRouter {
                 String op = obj.has("op") ? obj.get("op").getAsString() : "";
                 String chatText = obj.has("chat_text") ? obj.get("chat_text").getAsString() : "";
                 LOGGER.info("action_request: id={} mode={} op={} chat_text={}", actionId, mode, op, chatText);
-                // Route to mod-native action executor (v0 implements 2x2 crafting stubs)
+                // Route to mod-native action executor
                 ActionExecutor.handle(obj);
                 return;
             }

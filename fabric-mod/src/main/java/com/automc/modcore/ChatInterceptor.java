@@ -20,29 +20,70 @@ public final class ChatInterceptor {
 
     public static void register() {
         ClientSendMessageEvents.ALLOW_CHAT.register((message) -> {
-            String prefix = WebSocketClientManager.getInstance().getConfigOrDefaultCommandPrefix("!");
-            if (message != null && prefix != null && !prefix.isEmpty() && message.startsWith(prefix)) {
-                // swallow and forward to backend as command
+            String prefix = WebSocketClientManager.getInstance().getCommandPrefixOrNull();
+            if (message == null) return true;
+            // Bootstrap: allow only !connect when disconnected
+            if (!WebSocketClientManager.getInstance().isConnected()) {
+                if (message.startsWith("!connect ")) {
+                    String[] parts = message.substring("!connect ".length()).trim().split("\\s+", 2);
+                    if (parts.length == 2) {
+                        String addr = parts[0];
+                        String password = parts[1];
+                        WebSocketClientManager.getInstance().connect("ws://" + addr, password);
+                        hud("Connecting to " + addr + "...");
+                    } else {
+                        hud("Usage: !connect <ip:port> <password>");
+                    }
+                    return false;
+                } else if (message.startsWith("!")) {
+                    hud("A backend connection is required. Use !connect <ip:port> <password>.");
+                    return false;
+                }
+                return true;
+            }
+            // Connected: block !connect and forward other commands with configured prefix
+            if (message.startsWith("!connect")) {
+                hud("Already connected; use !disconnect first.");
+                return false;
+            }
+            if (message.startsWith("!disconnect")) {
+                WebSocketClientManager.getInstance().disconnect();
+                hud("Disconnected.");
+                return false;
+            }
+            boolean isCommand = (message.startsWith("!")) || (prefix != null && !prefix.isEmpty() && message.startsWith(prefix));
+            if (isCommand) {
+                // Always swallow and forward commands; never send to public chat
                 JsonObject obj = new JsonObject();
                 obj.addProperty("type", Protocol.TYPE_COMMAND);
                 obj.addProperty("request_id", java.util.UUID.randomUUID().toString());
-                obj.addProperty("text", message);
-                obj.addProperty("player_id", WebSocketClientManager.getInstance().getPlayerId());
+                // Normalize nested echo payloads client-side for UX parity with backend
+                String textOut = message;
+                if (textOut.startsWith("!echo ")) {
+                    String payload = textOut.substring("!echo ".length()).trim();
+                    while (payload.startsWith("!echo ")) payload = payload.substring("!echo ".length()).trim();
+                    textOut = "!echo " + payload;
+                }
+                obj.addProperty("text", textOut);
+                obj.addProperty("player_uuid", WebSocketClientManager.getInstance().getPlayerId());
                 WebSocketClientManager.getInstance().sendJson(obj);
-                // Optional debug acknowledgement in local chat HUD
                 if (WebSocketClientManager.getInstance().getAckOnCommandEnabled()) {
-                    net.minecraft.client.MinecraftClient mc = net.minecraft.client.MinecraftClient.getInstance();
-                    if (mc != null) {
-                        mc.execute(() -> {
-                            if (mc.inGameHud != null) {
-                                mc.inGameHud.getChatHud().addMessage(net.minecraft.text.Text.of("[auto-mc] " + message));
-                            }
-                        });
-                    }
+                    String pfx = WebSocketClientManager.getInstance().getFeedbackPrefixOrEmpty();
+                    hud(pfx + textOut);
                 }
                 return false;
             }
             return true;
+        });
+    }
+
+    private static void hud(String text) {
+        net.minecraft.client.MinecraftClient mc = net.minecraft.client.MinecraftClient.getInstance();
+        if (mc == null) return;
+        mc.execute(() -> {
+            if (mc.inGameHud != null) {
+                mc.inGameHud.getChatHud().addMessage(net.minecraft.text.Text.of(text));
+            }
         });
     }
 }

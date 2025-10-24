@@ -10,7 +10,8 @@ gating for mining.
 
 from typing import Dict, List, Optional
 
-from .skill_graph import SKILLS, MINEABLE_ITEMS, MINING_TOOL_REQUIREMENTS
+from .skill_graph import SKILLS, MINEABLE_ITEMS
+from .data_files import load_tool_tiers
 from .state_service import StateService  # type: ignore
 
 
@@ -54,7 +55,7 @@ def _expand_with_inventory(target: str, required: int, inv_counts: Dict[str, int
 
 
 def plan_craft(item_id: str, count: int, inventory_counts: Optional[Dict[str, int]] = None) -> List[Dict[str, object]]:
-    """Plan using a tiny skill graph (Plan4MC-style), producing a linear step list.
+    """Produce a linear step list based on a small skill graph.
 
     - Expands consume prerequisites recursively
     - Adds simple context requirements as acquire placeholders (e.g., furnace_nearby)
@@ -77,12 +78,16 @@ def plan_craft(item_id: str, count: int, inventory_counts: Optional[Dict[str, in
     # Insert minimal tool gating for mineables: ensure a capable pickaxe appears before mining iron ore/cobblestone
     gated: List[Dict[str, object]] = []
     have_tools: Dict[str, int] = {}
+    try:
+        tool_tiers = load_tool_tiers()
+    except Exception:
+        tool_tiers = {}
     for s in steps:
         if s.get("op") == "craft" and isinstance(s.get("recipe"), str):
             tool = str(s["recipe"])  # type: ignore[index]
             have_tools[tool] = have_tools.get(tool, 0) + int(s.get("count", 1))
-        if s.get("op") == "acquire" and s.get("item") in MINING_TOOL_REQUIREMENTS:
-            required_any = MINING_TOOL_REQUIREMENTS[str(s["item"])]  # type: ignore[index]
+        if s.get("op") == "acquire" and str(s.get("item")) in tool_tiers:
+            required_any = tool_tiers[str(s["item"])]  # type: ignore[index]
             if not any(have_tools.get(t, 0) > 0 for t in required_any):
                 # Craft the first acceptable tool we don't yet have (wooden -> stone -> iron)
                 for candidate in required_any:
@@ -92,6 +97,43 @@ def plan_craft(item_id: str, count: int, inventory_counts: Optional[Dict[str, in
                         break
         gated.append(s)
 
-    # Only concrete item ids; no generic id mapping here
+    # Reorder for context: if the root craft requires a context (e.g., crafting_table_nearby),
+    # aggregate world acquisitions (logs/ores) up-front, then ensure context, then do conversions/crafts.
+    root_skill = SKILLS.get(item_id)
+    requires_ctx = set(root_skill.require.keys()) if root_skill else set()
+    ctx_items = {r for r in requires_ctx if r in {"crafting_table_nearby", "furnace_nearby"}}
+    if not ctx_items:
+        return gated
 
-    return gated
+    skill_keys = set(SKILLS.keys())
+    world_set = set(MINEABLE_ITEMS)
+    world_counts: Dict[str, int] = {}
+    post_steps: List[Dict[str, object]] = []
+    need_ctx: Dict[str, int] = {}
+    for s in gated:
+        if s.get("op") == "acquire":
+            item = str(s.get("item", ""))
+            if item in {"crafting_table_nearby", "furnace_nearby"}:
+                need_ctx[item] = 1
+                continue
+            if (item in world_set) or (item not in skill_keys):
+                world_counts[item] = world_counts.get(item, 0) + int(s.get("count", 1))
+                continue
+        # Annotate conversions with required context when present
+        if s.get("op") in {"craft", "smelt"}:
+            if "crafting_table_nearby" in ctx_items:
+                s = {**s, "context": "crafting_table"}
+            if "furnace_nearby" in ctx_items and s.get("op") == "smelt":
+                s = {**s, "context": "furnace"}
+        post_steps.append(s)
+
+    reordered: List[Dict[str, object]] = []
+    for it, c in world_counts.items():
+        reordered.append({"op": "acquire", "item": it, "count": int(c)})
+    # Ensure context once (if required)
+    for ctx in ("crafting_table_nearby", "furnace_nearby"):
+        if ctx in ctx_items:
+            reordered.append({"op": "acquire", "item": ctx, "count": 1})
+    # Then perform conversions/crafts/smelts
+    reordered.extend(post_steps)
+    return reordered

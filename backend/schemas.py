@@ -36,8 +36,8 @@ class Vec3(TypedDict):
 class Handshake(TypedDict, total=False):
     type: Literal["handshake"]
     seq: int
-    player_id: str
-    auth_token: Optional[str]
+    player_uuid: str
+    password: str
     client_version: Optional[str]
     capabilities: Optional[Dict[str, Any]]
 
@@ -46,7 +46,7 @@ class Command(TypedDict):
     type: Literal["command"]
     request_id: str
     text: str
-    player_id: str
+    player_uuid: str
 
 
 class PlanStep(TypedDict, total=False):
@@ -105,7 +105,7 @@ class TelemetryState(TypedDict, total=False):
 
 class TelemetryUpdate(TypedDict):
     type: Literal["telemetry_update"]
-    player_id: str
+    player_uuid: str
     ts: str
     state: TelemetryState
 
@@ -113,27 +113,27 @@ class TelemetryUpdate(TypedDict):
 class StateRequest(TypedDict):
     type: Literal["state_request"]
     request_id: str
-    player_id: str
+    player_uuid: str
     selector: List[str]
 
 
 class StateResponse(TypedDict):
     type: Literal["state_response"]
     request_id: str
-    player_id: str
+    player_uuid: str
     state: Dict[str, Any]
 
 
 class ChatSend(TypedDict):
     type: Literal["chat_send"]
     request_id: str
-    player_id: str
+    player_uuid: str
     text: str
 
 
 class ChatEvent(TypedDict):
     type: Literal["chat_event"]
-    player_id: str
+    player_uuid: str
     text: str
     ts: str
 
@@ -151,18 +151,19 @@ class InventoryContainer(TypedDict):
     container_type: str
     version: int
     hash: str
+    ts_iso: str
     slots: List[ContainerSlot]
 
 
 class InventorySnapshot(TypedDict):
     type: Literal["inventory_snapshot"]
-    player_id: str
+    player_uuid: str
     container: InventoryContainer
 
 
 class InventoryDiff(TypedDict, total=False):
     type: Literal["inventory_diff"]
-    player_id: str
+    player_uuid: str
     container_key: Dict[str, Any]
     from_version: int
     to_version: int

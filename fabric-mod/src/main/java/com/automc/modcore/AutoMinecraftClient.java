@@ -22,11 +22,9 @@ public class AutoMinecraftClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         LOGGER.info("AutoMinecraft client initializing");
-        ModConfig config = ModConfig.load();
         MessagePump.register();
-        WebSocketClientManager.getInstance().start(config);
         ChatInterceptor.register();
         ChatEventForwarder.register();
-        InventoryWatcher.register();
+        com.automc.modcore.inventory.InventoryWatcher.register();
     }
 }

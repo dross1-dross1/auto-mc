@@ -1,13 +1,9 @@
-/**
- * AutoMinecraft inventory watchers.
- *
- * Purpose: Observe container open/close and slot updates to emit
- * inventory_snapshot and inventory_diff messages to the backend.
- */
-package com.automc.modcore;
+package com.automc.modcore.inventory;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import com.automc.modcore.Protocol;
+import com.automc.modcore.WebSocketClientManager;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.minecraft.client.MinecraftClient;
@@ -24,28 +20,23 @@ import org.apache.logging.log4j.Logger;
 import java.util.HashMap;
 import java.util.Map;
 
-final class InventoryWatcher {
+public final class InventoryWatcher {
     private static final Logger LOGGER = LogManager.getLogger("AutoMinecraft.InvWatch");
     private static boolean registered = false;
-
     private static Map<Integer, Snapshot> lastSnapshot = new HashMap<>();
 
     private InventoryWatcher() {}
 
-    static void register() {
+    public static void register() {
         if (registered) return;
         registered = true;
 
-        // On screen open, if it's a handled screen, emit a snapshot
         ScreenEvents.AFTER_INIT.register((client, screen, scaledWidth, scaledHeight) -> {
             tryEmitSnapshot(client);
-            lastDiffSendMs = 0L; // reset debounce on new screen
+            lastDiffSendMs = 0L;
         });
 
-        // On each client tick, detect diffs for the active handled screen
-        ClientTickEvents.END_CLIENT_TICK.register(client -> {
-            tryEmitDiff(client);
-        });
+        ClientTickEvents.END_CLIENT_TICK.register(InventoryWatcher::tryEmitDiff);
     }
 
     private static void tryEmitSnapshot(MinecraftClient mc) {
@@ -57,7 +48,7 @@ final class InventoryWatcher {
         lastSnapshot.put(h.syncId, snap);
         JsonObject msg = new JsonObject();
         msg.addProperty("type", Protocol.TYPE_INVENTORY_SNAPSHOT);
-        msg.addProperty("player_id", WebSocketClientManager.getInstance().getPlayerId());
+        msg.addProperty("player_uuid", WebSocketClientManager.getInstance().getPlayerId());
         msg.add("container", snap.toJson());
         WebSocketClientManager.getInstance().sendJson(msg);
     }
@@ -66,6 +57,8 @@ final class InventoryWatcher {
 
     private static void tryEmitDiff(MinecraftClient mc) {
         if (mc == null || mc.player == null) return;
+        // Skip until runtime settings are applied to avoid throwing on missing debounce value
+        if (!WebSocketClientManager.getInstance().areSettingsApplied()) return;
         if (!(mc.currentScreen instanceof HandledScreen<?> hs)) return;
         long nowMs = System.currentTimeMillis();
         int debounce = WebSocketClientManager.getInstance().getInventoryDiffDebounceMs();
@@ -76,10 +69,9 @@ final class InventoryWatcher {
         if (snap == null) return;
         if (prev == null) { lastSnapshot.put(h.syncId, snap); return; }
         if (prev.version == snap.version && prev.hash.equals(snap.hash)) return;
-        // Compute simple per-slot delta: adds/removes
         JsonObject diff = new JsonObject();
         diff.addProperty("type", Protocol.TYPE_INVENTORY_DIFF);
-        diff.addProperty("player_id", WebSocketClientManager.getInstance().getPlayerId());
+        diff.addProperty("player_uuid", WebSocketClientManager.getInstance().getPlayerId());
         JsonObject key = new JsonObject();
         key.addProperty("dim", snap.dim);
         JsonArray pos = new JsonArray();
@@ -130,7 +122,6 @@ final class InventoryWatcher {
         try {
             MinecraftClient mc = MinecraftClient.getInstance();
             if (mc == null || mc.world == null) return null;
-            // Infer container absolute position from current crosshair target if it's a block, else skip snapshot
             BlockPos pos = null;
             try {
                 if (mc.crosshairTarget instanceof net.minecraft.util.hit.BlockHitResult bhr) {
@@ -151,7 +142,6 @@ final class InventoryWatcher {
                 slots.put(i, new SlotEntry(id, cnt));
             }
             String hash = Integer.toHexString(slots.hashCode() ^ version ^ dim.hashCode());
-            // Filter: only record known container types; ignore player inventory-only screens
             String containerType = handler.getClass().getSimpleName();
             if (!isContainerType(containerType)) return null;
             return new Snapshot(dim, p, containerType, version, hash, slots);
@@ -164,7 +154,6 @@ final class InventoryWatcher {
     private static boolean isContainerType(String name) {
         if (name == null) return false;
         String n = name.toLowerCase();
-        // heuristic: include common container screen handlers
         return n.contains("chest") || n.contains("furnace") || n.contains("smoker") || n.contains("blastfurnace") || n.contains("ender") || n.contains("barrel") || n.contains("shulker");
     }
 
@@ -193,6 +182,7 @@ final class InventoryWatcher {
             c.addProperty("container_type", containerType);
             c.addProperty("version", version);
             c.addProperty("hash", hash);
+            c.addProperty("ts_iso", java.time.Instant.now().toString());
             JsonArray arr = new JsonArray();
             for (Map.Entry<Integer, SlotEntry> e : slots.entrySet()) {
                 JsonObject s = new JsonObject();

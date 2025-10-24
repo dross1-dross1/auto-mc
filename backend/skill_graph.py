@@ -23,7 +23,7 @@ class Skill:
     op: str  # craft | smelt
 
 
-# Minimal skill graph (Plan4MC-style) sufficient for v0 goals
+# Minimal skill graph sufficient for initial goals
 SKILLS: Dict[str, Skill] = {
     # 2x2 crafting (use concrete item ids to mirror game naming)
     "minecraft:oak_planks": Skill(
@@ -67,7 +67,7 @@ SKILLS: Dict[str, Skill] = {
 
     # Smelting
     "minecraft:iron_ingot": Skill(
-        consume={"minecraft:iron_ore": 1, "minecraft:oak_planks": 1},  # simple fuel for v0
+        consume={"minecraft:iron_ore": 1, "minecraft:oak_planks": 1},
         require={"furnace_nearby": 1},
         obtain={"minecraft:iron_ingot": 1},
         op="smelt",
@@ -86,9 +86,9 @@ SKILLS: Dict[str, Skill] = {
 # Items we "acquire" from the world (chat-bridge via Baritone)
 MINEABLE_ITEMS: List[str] = [
     "minecraft:oak_log",
-    "minecraft:cobblestone",
+    "minecraft:coal_ore",
     "minecraft:iron_ore",
-    "minecraft:coal",
+    "minecraft:stone",
 ]
 
 # Minimal tool gating for mineables

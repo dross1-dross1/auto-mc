@@ -17,7 +17,7 @@ if (Test-Path -LiteralPath $gradlew) {
             if ($javaCmd) { $javaOk = $true }
         }
         if ($javaOk) {
-            & $gradlew --no-daemon test
+            & $gradlew --no-daemon test jacocoTestReport
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         } else {
             Write-Warning 'Java not found (JAVA_HOME or java on PATH). Skipping Java tests.'
@@ -29,8 +29,20 @@ if (Test-Path -LiteralPath $gradlew) {
     Write-Warning 'gradlew.bat not found; skipping Java tests. See README for wrapper recovery.'
 }
 
-# 2) Python tests (backend/test) - always use system Python
-& python -m unittest discover -s backend/test -p test_*.py -q
+# 2) Python tests (backend/test) - always use system Python (with coverage if available)
+try {
+    python -m coverage --version *> $null 2>&1
+    if ($LASTEXITCODE -eq 0) {
+        python -m coverage run -m unittest discover -s backend/test -p test_*.py -q
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        python -m coverage xml -o coverage-backend.xml
+        python -m coverage report -m
+    } else {
+        & python -m unittest discover -s backend/test -p test_*.py -q
+    }
+} catch {
+    & python -m unittest discover -s backend/test -p test_*.py -q
+}
 exit $LASTEXITCODE
 
 

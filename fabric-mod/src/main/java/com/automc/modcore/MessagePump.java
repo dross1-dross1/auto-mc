@@ -31,6 +31,8 @@ final class MessagePump {
         if (registered) return;
         registered = true;
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            // If settings are not yet applied, allow only settings_update/broadcast to flow to apply them
+            if (!WebSocketClientManager.getInstance().areSettingsApplied()) { return; }
             // Drain up to configured number per tick to avoid stalls
             int maxPerTick = WebSocketClientManager.getInstance().getMessagePumpMaxPerTick();
             List<String> batch = new ArrayList<>(Math.min(64, Math.max(1, maxPerTick)));
@@ -50,10 +52,13 @@ final class MessagePump {
     }
 
     static void enqueue(String raw) {
-        // Drop if queue is too large to avoid runaway memory usage (configurable)
-        int cap = WebSocketClientManager.getInstance().getMessagePumpQueueCap();
-        if (QUEUE.size() > cap) {
-            return;
+        // Before settings are applied, accept messages unbounded to allow settings to arrive
+        if (WebSocketClientManager.getInstance().areSettingsApplied()) {
+            // Drop if queue is too large to avoid runaway memory usage (configurable)
+            int cap = WebSocketClientManager.getInstance().getMessagePumpQueueCap();
+            if (QUEUE.size() > cap) {
+                return;
+            }
         }
         QUEUE.offer(raw);
     }

@@ -1,6 +1,7 @@
 plugins {
     id 'fabric-loom' version '1.11-SNAPSHOT'
     id 'maven-publish'
+    id 'jacoco'
 }
 
 group = 'com.automc'
@@ -59,6 +60,18 @@ tasks.processResources {
 // Enable JUnit Platform for tests
 tasks.test {
     useJUnitPlatform()
+}
+
+jacoco {
+    toolVersion = "0.8.11"
+}
+
+tasks.jacocoTestReport {
+    dependsOn tasks.test
+    reports {
+        xml.required = true
+        html.required = true
+    }
 }
 
 

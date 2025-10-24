@@ -13,7 +13,7 @@ import com.google.gson.JsonObject;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-final class ActionExecutor {
+public final class ActionExecutor {
     private static final Logger LOGGER = LogManager.getLogger("AutoMinecraft.Actions");
 
     private ActionExecutor() {}
@@ -24,7 +24,8 @@ final class ActionExecutor {
         if ("craft".equals(op)) {
             String recipe = obj.has("recipe") ? obj.get("recipe").getAsString() : "";
             int count = obj.has("count") ? obj.get("count").getAsInt() : 1;
-            tryCraft2x2(actionId, recipe, count);
+            String context = obj.has("context") && obj.get("context").isJsonPrimitive() ? obj.get("context").getAsString() : "";
+            com.automc.modcore.actions.gui.GuiCrafting.craftByRecipeId(actionId, recipe, count, context);
             return;
         }
         if ("ensure".equals(op)) {
@@ -36,16 +37,11 @@ final class ActionExecutor {
         sendProgress(actionId, "skipped", "mod_native not implemented: " + op);
     }
 
-    private static void tryCraft2x2(String actionId, String recipe, int count) {
-        boolean attempted = Crafting2x2.tryCraft(actionId, recipe, count);
-        if (!attempted) {
-            sendProgress(actionId, "fail", "craft attempt failed: " + recipe);
-        }
-    }
+    // 2x2 crafting is now delegated via GuiCrafting
 
     // no ensure handler
 
-    static void sendProgress(String actionId, String status, String note) {
+    public static void sendProgress(String actionId, String status, String note) {
         WebSocketClientManager.getInstance().sendJson(ClientMessages.progress(actionId, status, note));
         LOGGER.info("progress_update: id={} status={} note={}", actionId, status, note);
     }

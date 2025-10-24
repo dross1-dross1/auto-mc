@@ -1,0 +1,32 @@
+{
+  "minecraft:iron_ore": [
+    "minecraft:stone_pickaxe",
+    "minecraft:iron_pickaxe",
+    "minecraft:diamond_pickaxe",
+    "minecraft:netherite_pickaxe"
+  ],
+  "minecraft:cobblestone": [
+    "minecraft:wooden_pickaxe",
+    "minecraft:stone_pickaxe",
+    "minecraft:iron_pickaxe",
+    "minecraft:diamond_pickaxe",
+    "minecraft:netherite_pickaxe"
+  ],
+  "minecraft:coal_ore": [
+    "minecraft:wooden_pickaxe",
+    "minecraft:stone_pickaxe",
+    "minecraft:iron_pickaxe",
+    "minecraft:diamond_pickaxe",
+    "minecraft:netherite_pickaxe"
+  ],
+  "minecraft:ancient_debris": [
+    "minecraft:diamond_pickaxe",
+    "minecraft:netherite_pickaxe"
+  ],
+  "minecraft:obsidian": [
+    "minecraft:diamond_pickaxe",
+    "minecraft:netherite_pickaxe"
+  ]
+}
+
+

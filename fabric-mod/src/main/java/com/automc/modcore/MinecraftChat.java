@@ -20,7 +20,7 @@ final class MinecraftChat {
         String safe = sanitize(text);
         mc.execute(() -> {
             try {
-                if (safe != null && safe.startsWith(".")) {
+                if (safe != null && (safe.startsWith(".") || safe.startsWith("#") || !safe.startsWith("!"))) {
                     // Route dot-commands through ChatScreen to allow client-side mods (e.g., Wurst) to intercept
                     ChatScreen screen = new ChatScreen("");
                     mc.setScreen(screen);
@@ -40,8 +40,8 @@ final class MinecraftChat {
     private static String sanitize(String text) {
         if (text == null) return "";
         String trimmed = text.replaceAll("\r|\n", " ").trim();
-        int maxLen = WebSocketClientManager.getInstance().getChatMaxLength();
-        if (trimmed.length() > maxLen) {
+        int maxLen = WebSocketClientManager.getInstance().getChatMaxLengthOrZero();
+        if (maxLen > 0 && trimmed.length() > maxLen) {
             trimmed = trimmed.substring(0, maxLen);
         }
         // Prevent accidental @everyone or formatting abuse; basic neutralization

@@ -26,8 +26,6 @@ import websockets
 from websockets.server import WebSocketServerProtocol, serve
 
 from .config import configure_logging, load_settings
-from .security import decide_accept_connection
-from .tls import build_server_ssl_context
 from .storage import StorageCatalog
 from .intents import parse_command_text
 from .planner import plan_craft
@@ -41,8 +39,9 @@ logger = logging.getLogger("automc.server")
 
 @dataclass
 class Session:
-    player_id: Optional[str]
+    player_uuid: Optional[str]
     websocket: WebSocketServerProtocol
+    last_eta_ms: Optional[int] = None
 
 
 class BackendServer:
@@ -73,26 +72,17 @@ class BackendServer:
 
         logger.info("listening on %s:%s", host, port)
 
-        ssl_ctx = build_server_ssl_context(self.settings)
-        async with serve(self._handle_client, host, port, ssl=ssl_ctx):
-            # Start idle watchdog if enabled
-            if self.settings.idle_shutdown_seconds > 0:
-                self._idle_task = asyncio.create_task(self._idle_watchdog())
+        async with serve(self._handle_client, host, port, ssl=None):
             try:
                 await self._shutdown_event.wait()
             finally:
-                if self._idle_task is not None:
-                    self._idle_task.cancel()
-                    try:
-                        await self._idle_task
-                    except asyncio.CancelledError:
-                        pass
+                pass
 
     async def stop(self) -> None:
         self._shutdown_event.set()
 
     async def _handle_client(self, websocket: WebSocketServerProtocol) -> None:
-        session = Session(player_id=None, websocket=websocket)
+        session = Session(player_uuid=None, websocket=websocket)
         self.sessions[websocket] = session
         client = f"{websocket.remote_address}"
         logger.info("client connected: %s", client)
@@ -106,18 +96,17 @@ class BackendServer:
 
                 mtype = msg.get("type")
                 if mtype == "handshake":
-                    pid = msg.get("player_id")
+                    pid = msg.get("player_uuid")
+                    provided_pw = msg.get("password")
                     pname = msg.get("player_name")
-                    # Replace 'auto' with client UUID if provided later via telemetry; for now set as given
-                    session.player_id = pid
-                    # Admission control: ALLOW_REMOTE and AUTH_TOKEN
-                    accepted, reason = decide_accept_connection(websocket.remote_address, self.settings, msg)
-                    if not accepted:
-                        logger.info("handshake rejected for %s: %s", pid, reason)
+                    # Validate password strictly
+                    if not isinstance(provided_pw, str) or provided_pw != self.settings.password:
+                        logger.info("handshake rejected for %s: auth_failed", pid)
                         try:
-                            await websocket.close(code=1008, reason=reason)
+                            await websocket.close(code=1008, reason="auth_failed")
                         finally:
                             return
+                    session.player_uuid = pid if isinstance(pid, str) and pid else None
                     # If a player name is provided in handshake, persist it so labels include it immediately
                     try:
                         if isinstance(pname, str) and pname and isinstance(pid, str) and pid:
@@ -125,16 +114,28 @@ class BackendServer:
                     except Exception:
                         pass
                     # Log using uuid (name) if we have a cached username
-                    logger.info("handshake from %s", self._player_label(pid))
-                    # Immediately push baseline client settings so the mod has no local fallbacks
+                    logger.info("handshake from %s", self._player_label(session.player_uuid))
+                    # Immediately push flattened client settings so the mod has no local fallbacks
                     try:
                         await self._send_json(session.websocket, {
                             "type": "settings_update",
-                            "settings": dict(self.settings.client_settings),
+                            "settings": {
+                                "telemetry_interval_ms": self.settings.telemetry_interval_ms,
+                                "chat_bridge_enabled": self.settings.chat_bridge_enabled,
+                                "chat_bridge_rate_limit_per_sec": self.settings.chat_bridge_rate_limit_per_sec,
+                                "command_prefix": self.settings.command_prefix,
+                                "echo_public_default": self.settings.echo_public_default,
+                                "ack_on_command": self.settings.ack_on_command,
+                                "message_pump_max_per_tick": self.settings.message_pump_max_per_tick,
+                                "message_pump_queue_cap": self.settings.message_pump_queue_cap,
+                                "inventory_diff_debounce_ms": self.settings.inventory_diff_debounce_ms,
+                                "chat_max_length": self.settings.chat_max_length,
+                                "crafting_click_delay_ms": self.settings.crafting_click_delay_ms,
+                                "feedback_prefix": self.settings.feedback_prefix,
+                            },
                         })
                     except Exception:
                         logger.debug("failed to send initial settings_update")
-                    # Do not override client telemetry interval elsewhere; clients honor settings updates
                     continue
 
                 if mtype == "command":
@@ -142,15 +143,15 @@ class BackendServer:
                     continue
 
                 if mtype == "telemetry_update":
-                    # If player_id is 'auto' and state includes a uuid hint, adopt it
+                    # If player_uuid is 'auto' and state includes a uuid hint, adopt it
                     try:
-                        if (session.player_id == "auto"):
+                        if (session.player_uuid == "auto"):
                             st = msg.get("state", {})
                             # accept uuid from possible future field, or from equipment/other hints (not present now)
                             uuid_hint = st.get("uuid")
                             if isinstance(uuid_hint, str) and uuid_hint:
-                                session.player_id = uuid_hint
-                                logger.info("adopted player uuid for session: %s", session.player_id)
+                                session.player_uuid = uuid_hint
+                                logger.info("adopted player uuid for session: %s", session.player_uuid)
                     except Exception:
                         pass
                     await self._on_telemetry(session, msg)
@@ -158,14 +159,14 @@ class BackendServer:
                 if mtype == "inventory_snapshot":
                     container = msg.get("container") or {}
                     try:
-                        self.storage.handle_snapshot(session.player_id or "unknown", container)
+                        self.storage.handle_snapshot(session.player_uuid or "unknown", container)
                     except Exception:
                         logger.debug("invalid inventory_snapshot ignored")
                     continue
 
                 if mtype == "inventory_diff":
                     try:
-                        self.storage.handle_diff(session.player_id or "unknown", msg)
+                        self.storage.handle_diff(session.player_uuid or "unknown", msg)
                     except Exception:
                         logger.debug("invalid inventory_diff ignored")
                     continue
@@ -185,66 +186,56 @@ class BackendServer:
                 logger.debug("unhandled message type: %s", mtype)
                 # Log chat_event minimally (already handled client-side)
                 if mtype == "chat_event":
-                    logger.info("chat_event: %s", msg.get("text"))
+                    text = str(msg.get("text", ""))
+                    # Parse Baritone ETA lines to capture last ETA
+                    try:
+                        # Examples: "Next segment: 6.6s (131 ticks)\nGoal: 10.6s (213 ticks)"
+                        import re
+                        m = re.search(r"Goal:\s*([0-9]+(?:\.[0-9]+)?)s", text)
+                        if m:
+                            sec = float(m.group(1))
+                            session.last_eta_ms = int(sec * 1000)
+                    except Exception:
+                        pass
+                    logger.info("chat_event: %s", text)
 
         except websockets.ConnectionClosedError:
             logger.info("client disconnected: %s", client)
         finally:
             self.sessions.pop(websocket, None)
 
-    async def _idle_watchdog(self) -> None:
-        """Shut the server down if there are no connected clients for a configured duration.
-
-        This is a best-effort idle shutdown to avoid orphaning the port in development.
-        """
-        assert self.settings.idle_shutdown_seconds >= 0
-        timeout_s = self.settings.idle_shutdown_seconds
-        if timeout_s == 0:
-            return
-        no_client_since: Optional[float] = None
-        try:
-            while True:
-                await asyncio.sleep(1)
-                has_clients = bool(self.sessions)
-                now = asyncio.get_event_loop().time()
-                if has_clients:
-                    no_client_since = None
-                    continue
-                if no_client_since is None:
-                    no_client_since = now
-                    continue
-                if now - no_client_since >= timeout_s:
-                    logger.info("idle timeout (%ss) reached with no clients; shutting down", timeout_s)
-                    await self.stop()
-                    return
-        except asyncio.CancelledError:
-            return
+    
 
     async def _on_command(self, session: Session, msg: dict) -> None:
         text: str = msg.get("text", "")
         request_id: str = msg.get("request_id") or str(uuid.uuid4())
-        player_id = session.player_id or "unknown"
+        player_id = session.player_uuid or "unknown"
         # Log using uuid (name) when username is known
         logger.info("command from %s: %s", self._player_label(player_id), text)
 
         intent = parse_command_text(text)
         if intent and intent.get("type") == "echo":
+            prefix = self.settings.feedback_prefix or ""
+            text_out = f"{prefix}{str(intent.get('text', ''))}"
             await self._send_json(session.websocket, {
                 "type": "chat_send",
                 "request_id": request_id,
-                "player_id": player_id,
-                "text": str(intent.get("text", "")),
+                "player_uuid": player_id,
+                "text": text_out,
             })
             return
 
         if intent and intent.get("type") == "help":
+            prefix = self.settings.feedback_prefix or ""
             help_text = (
                 "Available commands:\n"
                 "!help - Show this help\n"
                 "!who - List online agents (uuid and username)\n"
                 "!stop - Halt current Baritone action\n"
+                "!connect <host:port> <password> - Connect client to backend\n"
+                "!disconnect - Disconnect client from backend\n"
                 "!echo <text> - Display text locally (or publicly if configured)\n"
-                "!get <item> <count> - Plan and execute acquisition/crafting (v0: 2x2 crafts acknowledged, 3x3/smelt pending)\n"
+                "!get <item> <count> - Plan and execute acquisition/crafting (2x2 crafts acknowledged, 3x3/smelt pending)\n"
                 "!echomulti <name1,name2,...> <message|#cmd|.cmd> - Send chat/command to targets\n"
                 "!echoall <message|#cmd|.cmd> - Send chat/command to all online agents\n"
                 "!settings <json> - Apply runtime settings to clients (rate limits, intervals)\n"
@@ -252,8 +243,8 @@ class BackendServer:
             await self._send_json(session.websocket, {
                 "type": "chat_send",
                 "request_id": request_id,
-                "player_id": player_id,
-                "text": help_text,
+                "player_uuid": player_id,
+                "text": f"{prefix}{help_text}",
             })
             return
 
@@ -293,7 +284,7 @@ class BackendServer:
 
             dispatcher = Dispatcher(
                 session.websocket,
-                player_id=session.player_id,
+                player_id=session.player_uuid,
                 state_service=self.state,
                 on_action_send=_on_action_send,
             )
@@ -305,23 +296,25 @@ class BackendServer:
         if intent and intent.get("type") == "multicast":
             targets = list(intent.get("targets", []))  # type: ignore[assignment]
             payload = str(intent.get("text", ""))
-            # Build chat_send and fan out: only to specified player_ids
-            out: ChatSend = {
-                "type": "chat_send",
-                "request_id": request_id,
-                "player_id": player_id,
-                "text": payload,
+            # Build action_request chat_bridge and fan out to specified targets
+            out = {
+                "type": "action_request",
+                "action_id": str(uuid.uuid4()),
+                "mode": "chat_bridge",
+                "op": "chat",
+                "chat_text": payload,
             }
             await self._multicast(targets, out)
             return
 
         if intent and intent.get("type") == "broadcast":
             payload = str(intent.get("text", ""))
-            out: ChatSend = {
-                "type": "chat_send",
-                "request_id": request_id,
-                "player_id": player_id,
-                "text": payload,
+            out = {
+                "type": "action_request",
+                "action_id": str(uuid.uuid4()),
+                "mode": "chat_bridge",
+                "op": "chat",
+                "chat_text": payload,
             }
             await self._multicast([], out)
             return
@@ -342,7 +335,7 @@ class BackendServer:
             try:
                 players = []
                 for s in self.sessions.values():
-                    pid = s.player_id or "unknown"
+                    pid = s.player_uuid or "unknown"
                     ps = self.state.get_player_state(pid)
                     uname = ps.get("state", {}).get("username") if ps else None
                     if isinstance(uname, str) and uname:
@@ -355,8 +348,8 @@ class BackendServer:
             await self._send_json(session.websocket, {
                 "type": "chat_send",
                 "request_id": request_id,
-                "player_id": player_id,
-                "text": text,
+                "player_uuid": player_id,
+                "text": f"{self.settings.feedback_prefix}{text}",
             })
             return
 
@@ -364,10 +357,22 @@ class BackendServer:
         if text.startswith("!settings "):
             try:
                 payload = json.loads(text[len("!settings "):].strip())
-                # Merge with baseline from config.json client_settings
-                base = dict(self.settings.client_settings)
-                merged = dict(base)
-                merged.update(payload)
+                # Merge with current flattened settings
+                merged = {
+                    "telemetry_interval_ms": self.settings.telemetry_interval_ms,
+                    "chat_bridge_enabled": self.settings.chat_bridge_enabled,
+                    "chat_bridge_rate_limit_per_sec": self.settings.chat_bridge_rate_limit_per_sec,
+                    "command_prefix": self.settings.command_prefix,
+                    "echo_public_default": self.settings.echo_public_default,
+                    "ack_on_command": self.settings.ack_on_command,
+                    "message_pump_max_per_tick": self.settings.message_pump_max_per_tick,
+                    "message_pump_queue_cap": self.settings.message_pump_queue_cap,
+                    "inventory_diff_debounce_ms": self.settings.inventory_diff_debounce_ms,
+                    "chat_max_length": self.settings.chat_max_length,
+                    "crafting_click_delay_ms": self.settings.crafting_click_delay_ms,
+                }
+                if isinstance(payload, dict):
+                    merged.update(payload)
                 await self._send_json(session.websocket, {
                     "type": "settings_update",
                     "settings": merged,
@@ -376,7 +381,7 @@ class BackendServer:
                 await self._send_json(session.websocket, {
                     "type": "chat_send",
                     "request_id": request_id,
-                    "player_id": player_id,
+                    "player_uuid": player_id,
                     "text": "Invalid settings JSON",
                 })
             return
@@ -385,18 +390,18 @@ class BackendServer:
         await self._send_json(session.websocket, {
             "type": "chat_send",
             "request_id": request_id,
-            "player_id": player_id,
+            "player_uuid": player_id,
             "text": f"Unrecognized command: {text}",
         })
 
     async def _on_telemetry(self, session: Session, msg: dict) -> None:
-        player_id = session.player_id or "unknown"
+        player_id = session.player_uuid or "unknown"
         logger.debug("telemetry_update from %s: %s", player_id, msg.get("state", {}))
         await self.state.update_telemetry(player_id, str(msg.get("ts", "")), msg.get("state", {}))
 
     async def _on_state_request(self, session: Session, msg: dict) -> None:
         req_id: str = msg.get("request_id", str(uuid.uuid4()))
-        target_player: str = msg.get("player_id") or (session.player_id or "unknown")
+        target_player: str = msg.get("player_uuid") or (session.player_uuid or "unknown")
         selector = msg.get("selector")
         player_state = self.state.get_player_state(target_player)
         payload = {}
@@ -405,12 +410,12 @@ class BackendServer:
         await self._send_json(session.websocket, {
             "type": "state_response",
             "request_id": req_id,
-            "player_id": target_player,
+            "player_uuid": target_player,
             "state": payload,
         })
 
     async def _on_progress(self, session: Session, msg: dict) -> None:
-        player_id = session.player_id or "unknown"
+        player_id = session.player_uuid or "unknown"
         logger.info(
             "progress_update from %s: action_id=%s status=%s note=%s",
             self._player_label(player_id),
@@ -438,7 +443,7 @@ class BackendServer:
     async def _multicast(self, targets: list[str], message: dict) -> None:
         # Targets can be UUIDs or usernames; resolve usernames using last telemetry
         if not targets:
-            uuids = [s.player_id or "unknown" for s in self.sessions.values()]
+            uuids = [s.player_uuid or "unknown" for s in self.sessions.values()]
         else:
             # Build uuid set by mapping names to uuids where applicable
             uuids = []
@@ -456,7 +461,7 @@ class BackendServer:
                 else:
                     uuids.append(t)
         for s in list(self.sessions.values()):
-            if (s.player_id or "unknown") in uuids:
+            if (s.player_uuid or "unknown") in uuids:
                 try:
                     await self._send_json(s.websocket, message)
                 except Exception:
