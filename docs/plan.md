@@ -405,7 +405,7 @@ Start with:
 Small, correct, and boring beats clever here.
 
 Known gaps and next steps:
-- Recipe ingestion: ingest vanilla JSON recipes/tags to avoid hardcoding in `backend/skill_graph.py`; generate skill nodes for craft/smelt and use tags (e.g., logs) for interchangeable inputs.
+- Recipe data: curated in `settings/skill_graph.json` and `settings/mineable_items.json`; expand coverage over time.
 - 2x2 vs 3x3 separation: client currently only acknowledges 2x2 `craft` ops; full 3x3 crafting and smelting will require mod-native UI logic after ensure via Baritone navigate (`#goto`).
 - Acquire coalescing: consecutive duplicate acquires are coalesced to reduce repeated `#mine` sends; future: inventory-aware planning to skip already-satisfied items.
 - Context ensure: `crafting_table_nearby`/`furnace_nearby` use Baritone navigation (`#goto <container>`) with auto-open enabled; fallback to mod-native placement + explicit interact when none found or unreachable.
@@ -497,4 +497,4 @@ Repository layout
 - `docs/` (design)
 - `data/` (runtime state; gitignored)
 - `README.md`
-- Root helper scripts (Windows): `build_mod.ps1`, `run_backend.ps1`, `run_tests.ps1`
+- Root helper scripts (Windows): `run_build.ps1`, `run_backend.ps1`

@@ -10,8 +10,7 @@ gating for mining.
 
 from typing import Dict, List, Optional
 
-from .skill_graph import SKILLS, MINEABLE_ITEMS
-from .data_files import load_tool_tiers
+from .data_files import load_tool_tiers, load_skill_graph, load_mineable_items
 from .state_service import StateService  # type: ignore
 
 
@@ -19,7 +18,8 @@ def _expand_with_inventory(target: str, required: int, inv_counts: Dict[str, int
     """Inventory-aware expansion: prune leaves/outputs using current inventory, emit only missing deltas."""
     if required <= 0:
         return
-    skill = SKILLS.get(target)
+    skills = load_skill_graph()
+    skill = skills.get(target)
     if skill is None:
         have = int(inv_counts.get(target, 0))
         if have >= required:
@@ -40,18 +40,18 @@ def _expand_with_inventory(target: str, required: int, inv_counts: Dict[str, int
         inv_counts[target] = 0
         required -= have_out
 
-    obtain_per_craft = int(skill.obtain.get(target, 1)) if skill.obtain else 1
+    obtain_per_craft = int((skill.get("obtain") or {}).get(target, 1))
     crafts_needed = max(1, (required + obtain_per_craft - 1) // obtain_per_craft)
 
     # Expand inputs for total crafts
-    for dep, qty in skill.consume.items():
+    for dep, qty in (skill.get("consume") or {}).items():
         _expand_with_inventory(dep, int(qty) * crafts_needed, inv_counts, steps)
 
     # Ensure context
-    for req, qty in skill.require.items():
+    for req, qty in (skill.get("require") or {}).items():
         steps.append({"op": "acquire", "item": req, "count": int(qty)})
 
-    steps.append({"op": "craft" if skill.op == "craft" else "smelt", "recipe": target, "count": crafts_needed})
+    steps.append({"op": "craft" if skill.get("op") == "craft" else "smelt", "recipe": target, "count": crafts_needed})
 
 
 def plan_craft(item_id: str, count: int, inventory_counts: Optional[Dict[str, int]] = None) -> List[Dict[str, object]]:
@@ -99,14 +99,15 @@ def plan_craft(item_id: str, count: int, inventory_counts: Optional[Dict[str, in
 
     # Reorder for context: if the root craft requires a context (e.g., crafting_table_nearby),
     # aggregate world acquisitions (logs/ores) up-front, then ensure context, then do conversions/crafts.
-    root_skill = SKILLS.get(item_id)
-    requires_ctx = set(root_skill.require.keys()) if root_skill else set()
+    skills = load_skill_graph()
+    root_skill = skills.get(item_id)
+    requires_ctx = set((root_skill.get("require") or {}).keys()) if root_skill else set()
     ctx_items = {r for r in requires_ctx if r in {"crafting_table_nearby", "furnace_nearby"}}
     if not ctx_items:
         return gated
 
-    skill_keys = set(SKILLS.keys())
-    world_set = set(MINEABLE_ITEMS)
+    skill_keys = set(skills.keys())
+    world_set = set(load_mineable_items())
     world_counts: Dict[str, int] = {}
     post_steps: List[Dict[str, object]] = []
     need_ctx: Dict[str, int] = {}

@@ -34,3 +34,10 @@ Applied to clients at runtime via `settings_update`.
 Notes:
 - The backend pushes settings on handshake; the client does not read local files or fall back to built-in defaults.
 - For stability, start with conservative values, then tune based on world/server performance.
+
+## Recipe and planning data (required)
+- `settings/skill_graph.json` (object):
+  - `skills` (object): map of recipe id → { `op`: "craft"|"smelt", `consume`: {id:int}, `require`: {id:int}, `obtain`: {id:int} }.
+- `settings/mineable_items.json` (array): list of item ids acquired from the world (mined/chopped/etc.).
+- `settings/tool_tiers.json` (object): map of mineable id → ordered list of acceptable tool ids (lowest first).
+- `settings/acquisition_map.json` (object): item id → Baritone target string (e.g., `iron_ore`).

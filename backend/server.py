@@ -18,7 +18,7 @@ import json
 import logging
 import signal
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, Optional
 
@@ -42,6 +42,7 @@ class Session:
     player_uuid: Optional[str]
     websocket: WebSocketServerProtocol
     last_eta_ms: Optional[int] = None
+    dispatch_tasks: list[asyncio.Task] = field(default_factory=list)
 
 
 class BackendServer:
@@ -136,6 +137,16 @@ class BackendServer:
                         })
                     except Exception:
                         logger.debug("failed to send initial settings_update")
+                    # Send a local chat confirmation so users see connection succeeded
+                    try:
+                        await self._send_json(session.websocket, {
+                            "type": "chat_send",
+                            "request_id": str(uuid.uuid4()),
+                            "player_uuid": session.player_uuid or "unknown",
+                            "text": f"{self.settings.feedback_prefix}Connected to backend {self.settings.host}:{self.settings.port}",
+                        })
+                    except Exception:
+                        logger.debug("failed to send connection confirmation chat")
                     continue
 
                 if mtype == "command":
@@ -202,6 +213,13 @@ class BackendServer:
         except websockets.ConnectionClosedError:
             logger.info("client disconnected: %s", client)
         finally:
+            try:
+                # Cancel any outstanding dispatcher tasks for this session
+                for t in list(session.dispatch_tasks):
+                    t.cancel()
+                session.dispatch_tasks.clear()
+            except Exception:
+                pass
             self.sessions.pop(websocket, None)
 
     
@@ -231,7 +249,7 @@ class BackendServer:
                 "Available commands:\n"
                 "!help - Show this help\n"
                 "!who - List online agents (uuid and username)\n"
-                "!stop - Halt current Baritone action\n"
+                "!stop - Cancel all active tasks for all agents and stop Baritone\n"
                 "!connect <host:port> <password> - Connect client to backend\n"
                 "!disconnect - Disconnect client from backend\n"
                 "!echo <text> - Display text locally (or publicly if configured)\n"
@@ -290,7 +308,19 @@ class BackendServer:
             )
             # Store the index on the session object for later lookups
             setattr(session, "_action_index", action_index)
-            asyncio.create_task(dispatcher.run_linear(steps))
+            task = asyncio.create_task(dispatcher.run_linear(steps))
+            # Track task for cancellation
+            try:
+                session.dispatch_tasks.append(task)
+                def _cleanup_task(t: asyncio.Task) -> None:
+                    try:
+                        if t in session.dispatch_tasks:
+                            session.dispatch_tasks.remove(t)
+                    except Exception:
+                        pass
+                task.add_done_callback(_cleanup_task)
+            except Exception:
+                pass
             return
 
         if intent and intent.get("type") == "multicast":
@@ -320,13 +350,13 @@ class BackendServer:
             return
 
         if intent and intent.get("type") == "stop":
-            # Force stop current Baritone action for this client
+            # Cancel all active tasks across all agents and stop Baritone everywhere
+            await self._cancel_all_tasks_and_broadcast_stop()
             await self._send_json(session.websocket, {
-                "type": "action_request",
-                "action_id": str(uuid.uuid4()),
-                "mode": "chat_bridge",
-                "op": "chat",
-                "chat_text": "#stop",
+                "type": "chat_send",
+                "request_id": request_id,
+                "player_uuid": player_id,
+                "text": f"{self.settings.feedback_prefix}Cancelled all active tasks and signaled all agents to stop.",
             })
             return
 
@@ -469,6 +499,26 @@ class BackendServer:
 
     async def _send_json(self, websocket: WebSocketServerProtocol, obj: dict) -> None:
         await websocket.send(json.dumps(obj, separators=(",", ":")))
+
+    async def _cancel_all_tasks_and_broadcast_stop(self) -> None:
+        # Cancel all tracked dispatcher tasks for every session
+        for s in list(self.sessions.values()):
+            try:
+                for t in list(s.dispatch_tasks):
+                    t.cancel()
+                s.dispatch_tasks.clear()
+            except Exception:
+                continue
+        # Broadcast Baritone stop to all agents
+        stop_msg = {
+            "type": "action_request",
+            "action_id": str(uuid.uuid4()),
+            "mode": "chat_bridge",
+            "op": "chat",
+            "chat_text": "#stop",
+        }
+        await self._multicast([], stop_msg)
+
 
 
 def main() -> None:

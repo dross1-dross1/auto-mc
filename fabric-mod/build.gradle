@@ -1,7 +1,6 @@
 plugins {
     id 'fabric-loom' version '1.11-SNAPSHOT'
     id 'maven-publish'
-    id 'jacoco'
 }
 
 group = 'com.automc'
@@ -21,13 +20,6 @@ dependencies {
     include(implementation("org.java-websocket:Java-WebSocket:1.5.6"))
     include(implementation("com.google.code.gson:gson:2.10.1"))
 
-    // Test dependencies (JUnit 5 + Mockito with static mocking support)
-    testImplementation("org.junit.jupiter:junit-jupiter-api:5.11.0")
-    testImplementation("org.junit.jupiter:junit-jupiter-params:5.11.0")
-    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.11.0")
-    testImplementation("org.mockito:mockito-core:5.14.2")
-    testImplementation("org.mockito:mockito-junit-jupiter:5.14.2")
-    testImplementation("org.mockito:mockito-inline:5.2.0")
 }
 
 java {
@@ -57,21 +49,6 @@ tasks.processResources {
     }
 }
 
-// Enable JUnit Platform for tests
-tasks.test {
-    useJUnitPlatform()
-}
-
-jacoco {
-    toolVersion = "0.8.11"
-}
-
-tasks.jacocoTestReport {
-    dependsOn tasks.test
-    reports {
-        xml.required = true
-        html.required = true
-    }
-}
+// Tests and coverage removed per repo policy
 
 

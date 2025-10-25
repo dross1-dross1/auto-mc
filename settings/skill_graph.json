@@ -1,0 +1,54 @@
+{
+  "skills": {
+    "minecraft:oak_planks": {
+      "consume": { "minecraft:oak_log": 1 },
+      "require": {},
+      "obtain": { "minecraft:oak_planks": 4 },
+      "op": "craft"
+    },
+    "minecraft:stick": {
+      "consume": { "minecraft:oak_planks": 2 },
+      "require": {},
+      "obtain": { "minecraft:stick": 4 },
+      "op": "craft"
+    },
+    "minecraft:crafting_table": {
+      "consume": { "minecraft:oak_planks": 4 },
+      "require": {},
+      "obtain": { "minecraft:crafting_table": 1 },
+      "op": "craft"
+    },
+    "minecraft:wooden_pickaxe": {
+      "consume": { "minecraft:oak_planks": 3, "minecraft:stick": 2 },
+      "require": { "crafting_table_nearby": 1 },
+      "obtain": { "minecraft:wooden_pickaxe": 1 },
+      "op": "craft"
+    },
+    "minecraft:stone_pickaxe": {
+      "consume": { "minecraft:cobblestone": 3, "minecraft:stick": 2 },
+      "require": { "crafting_table_nearby": 1 },
+      "obtain": { "minecraft:stone_pickaxe": 1 },
+      "op": "craft"
+    },
+    "minecraft:furnace": {
+      "consume": { "minecraft:cobblestone": 8 },
+      "require": { "crafting_table_nearby": 1 },
+      "obtain": { "minecraft:furnace": 1 },
+      "op": "craft"
+    },
+    "minecraft:iron_ingot": {
+      "consume": { "minecraft:iron_ore": 1, "minecraft:oak_planks": 1 },
+      "require": { "furnace_nearby": 1 },
+      "obtain": { "minecraft:iron_ingot": 1 },
+      "op": "smelt"
+    },
+    "minecraft:iron_pickaxe": {
+      "consume": { "minecraft:iron_ingot": 3, "minecraft:stick": 2 },
+      "require": { "crafting_table_nearby": 1 },
+      "obtain": { "minecraft:iron_pickaxe": 1 },
+      "op": "craft"
+    }
+  }
+}
+
+

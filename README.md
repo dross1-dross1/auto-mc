@@ -20,7 +20,7 @@ Type chat commands in Minecraft Java and watch an in-game agent execute tasks en
 - Flow: `!command` → mod sends JSON → backend parses → planner emits steps → backend streams actions → mod executes → telemetry/progress update.
 
 ## Configuration
-Use a single JSON file `settings/config.json`. No environment variables or per-client mod files are used. This file is required and must include both server and client runtime keys (flattened).
+Use a single JSON file `settings/config.json`. No environment variables or per-client mod files are used. This file is required and must include both server and client runtime keys (flattened). Recipe/planning data is curated in `settings/*.json`.
 
 Policy: All runtime tunables are sourced exclusively from `settings/config.json`. There are no hardcoded defaults or fallbacks in code. If a required key is missing, the backend will error at startup so you can fix the configuration explicitly.
 
@@ -54,7 +54,7 @@ Example `settings/config.json` (full):
 ## Build the Fabric mod (JAR)
 Windows (PowerShell):
 ```powershell
-./build_mod.ps1
+./run_build.ps1
 # Output: .\fabric-mod\build\libs\autominecraft-0.1.0.jar
 ```
 
@@ -87,7 +87,7 @@ After this, build with the wrapper:
 - Create `settings/config.json` (see full example below, include client runtime keys).
 - Install Python deps: `pip install websockets` (system Python; no venvs).
 - Start backend: `./run_backend.ps1`.
-- Build mod: `./build_mod.ps1`.
+- Build mod: `./run_build.ps1`.
 
 0) Prerequisites
 - JDK 21 on PATH
@@ -113,7 +113,7 @@ pip install websockets
 - Watch logs for: "listening on HOST:PORT".
 
 2) Build the mod (JAR)
-- Preferred: `./build_mod.ps1`.
+- Preferred: `./run_build.ps1`.
 - Or: `cd fabric-mod` then run the wrapper. If the wrapper JAR is missing, follow Tooling → Gradle wrapper recovery.
 
 3) Install and run in Minecraft
@@ -128,28 +128,7 @@ Tips
 
 ## Developer workflow
 
-Daily loop:
-1) Write or modify backend/mod code for a small change.
-2) Add/adjust unit tests that capture expected behavior.
-3) Run fast tests locally:
-   - Backend: `python -m unittest discover -s tests -p test_*.py -q`
-   - Mod: `cd fabric-mod; (./gradlew|.\gradlew.bat) --no-daemon test`
-4) If the change affects live interactions (crafting UI, placement, Baritone pathing), build the mod and verify in-game.
-5) Commit with clear message; open PR; let CI run both suites.
-
-When to prefer automated tests:
-- Text/JSON in, text/JSON out logic (parsers, planners, routers, dispatchers).
-- Pure calculations, ordering, gating rules, and coalescing/deduping logic.
-
-When manual testing is required:
-- Minecraft-specific APIs (UI open/interactions, block placement/use, world scans) and timing on the MC thread.
-- Baritone/Wurst behavior differences across worlds/servers.
-
-Commands recap:
-- All tests: `./run_tests.ps1`
-- Backend unit tests: `python -m unittest discover -s backend/test -p test_*.py -q`
-- Java tests: `cd fabric-mod; (./gradlew|.\gradlew.bat) --no-daemon test`
-- Backend integration check: `python backend/test/integration_backend.py`
+Keep changes small and verify in-game for interactions (crafting UI, placement, Baritone pathing). Build the mod and run the backend when needed.
 
 ## Security and observability
 - Sanitize/escape outbound chat; never echo arbitrary backend input to public chat.
