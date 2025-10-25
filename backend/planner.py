@@ -50,6 +50,15 @@ def _expand_with_inventory(target: str, required: int, inv_counts: Dict[str, int
     # Ensure context
     for req, qty in (skill.get("require") or {}).items():
         steps.append({"op": "acquire", "item": req, "count": int(qty)})
+    # Account for outputs produced by this craft/smelt so downstream expansions can reuse them
+    produced_total = crafts_needed * obtain_per_craft
+    inv_counts[target] = int(inv_counts.get(target, 0)) + produced_total
+    # Consume the required amount from the produced/available pool, leaving any extra available
+    have_after = int(inv_counts.get(target, 0))
+    if have_after >= required:
+        inv_counts[target] = have_after - required
+    else:
+        inv_counts[target] = 0
 
     steps.append({"op": "craft" if skill.get("op") == "craft" else "smelt", "recipe": target, "count": crafts_needed})
 

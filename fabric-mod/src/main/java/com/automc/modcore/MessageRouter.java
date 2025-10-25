@@ -39,15 +39,8 @@ public final class MessageRouter {
                 } else if (echoPublic) {
                     sent = WebSocketClientManager.getInstance().trySendChatRateLimited(text);
                 } else {
-                    // Always show non-command chat_send locally in HUD
-                    net.minecraft.client.MinecraftClient mc = net.minecraft.client.MinecraftClient.getInstance();
-                    if (mc != null) {
-                        mc.execute(() -> {
-                            if (mc.inGameHud != null) {
-                                mc.inGameHud.getChatHud().addMessage(net.minecraft.text.Text.of(text));
-                            }
-                        });
-                    }
+                    // Always show non-command chat_send locally in HUD with colored prefix
+                    com.automc.modcore.ChatInterceptor.hud(text);
                 }
                 LOGGER.info("chat_send -> {} (sent={})", text, sent);
                 return;
@@ -63,10 +56,19 @@ public final class MessageRouter {
                     }
                     return;
                 }
-                String actionId = obj.has("action_id") ? obj.get("action_id").getAsString() : "";
+                // Mod-native cancel: only clear pending UI crafts; do not open or close screens implicitly
                 String op = obj.has("op") ? obj.get("op").getAsString() : "";
+                if ("cancel".equals(op)) {
+                    try {
+                        com.automc.modcore.actions.gui.GuiCrafting.cancelAll();
+                        com.automc.modcore.actions.gui.GuiCrafting.signalCancel();
+                    } catch (Throwable ignored) {}
+                    return;
+                }
+                String actionId = obj.has("action_id") ? obj.get("action_id").getAsString() : "";
+                String op2 = obj.has("op") ? obj.get("op").getAsString() : "";
                 String chatText = obj.has("chat_text") ? obj.get("chat_text").getAsString() : "";
-                LOGGER.info("action_request: id={} mode={} op={} chat_text={}", actionId, mode, op, chatText);
+                LOGGER.info("action_request: id={} mode={} op={} chat_text={}", actionId, mode, op2, chatText);
                 // Route to mod-native action executor
                 ActionExecutor.handle(obj);
                 return;

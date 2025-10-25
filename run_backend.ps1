@@ -5,7 +5,7 @@ Set-Location -LiteralPath $PSScriptRoot
 
 # Guard: require settings/config.json so failures don't flash and close
 if (-not (Test-Path -LiteralPath (Join-Path $PSScriptRoot 'settings/config.json'))) {
-    Write-Host 'settings/config.json not found. Create it using the example in README.' -ForegroundColor Yellow
+    Write-Host 'settings/config.json not found. Create it using the Configuration section in docs/docs.md.' -ForegroundColor Yellow
     Read-Host -Prompt 'Press Enter to exit'
     exit 1
 }
@@ -17,10 +17,10 @@ try {
     $port = 8765
     $conns = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
     if ($conns) {
-        $pid = ($conns | Select-Object -First 1 -ExpandProperty OwningProcess)
-        if ($pid) {
-            Write-Host ("Port {0} in use by PID {1}. Stopping..." -f $port, $pid) -ForegroundColor Yellow
-            Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue
+        $listenerPid = ($conns | Select-Object -First 1 -ExpandProperty OwningProcess)
+        if ($listenerPid) {
+            Write-Host ("Port {0} in use by PID {1}. Stopping..." -f $port, $listenerPid) -ForegroundColor Yellow
+            Stop-Process -Id $listenerPid -Force -ErrorAction SilentlyContinue
             Start-Sleep -Milliseconds 200
         }
     }
@@ -44,7 +44,7 @@ if (Get-Command python -ErrorAction SilentlyContinue) {
 if ($exitCode -ne 0) {
     Write-Host ("Backend exited with code {0}. Common causes:" -f $exitCode) -ForegroundColor Yellow
     Write-Host ' - Missing Python package: install with: pip install websockets'
-    Write-Host ' - Invalid or missing settings/config.json keys: see docs/config.md'
+    Write-Host ' - Invalid or missing settings/config.json keys: see docs/docs.md (Configuration)'
     Read-Host -Prompt 'Press Enter to exit'
 }
 

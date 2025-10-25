@@ -26,5 +26,3 @@ public final class Protocol {
 	public static final String MODE_CHAT_BRIDGE = "chat_bridge";
 	public static final String MODE_MOD_NATIVE = "mod_native";
 }
-
-

@@ -49,28 +49,25 @@ final class Crafting3x3 {
     private static void craftWoodenPickaxe(String actionId, int crafts) {
         MinecraftClient mc = MinecraftClient.getInstance();
         if (mc == null || mc.player == null || mc.interactionManager == null) return;
+        if (com.automc.modcore.actions.gui.GuiCrafting.shouldAbort()) return;
         PlayerInventory inv = mc.player.getInventory();
         int made = 0;
         for (int i = 0; i < crafts; i++) {
+            if (com.automc.modcore.actions.gui.GuiCrafting.shouldAbort()) break;
             // Need 3 planks and 2 sticks
             int srcPlanks = findFirstMatching(inv, iid -> iid.endsWith("_planks"));
             int srcSticks = findFirstMatching(inv, iid -> iid.equals("minecraft:stick"));
             if (srcPlanks < 0 || srcSticks < 0) break;
             int planksSlot = toHandlerSlotIndex(srcPlanks);
             int sticksSlot = toHandlerSlotIndex(srcSticks);
+            // Place planks into 3x3 slots: 1,2,3 (top row) using fresh pickups to avoid cursor carryover
+            click(planksSlot, 0, SlotActionType.PICKUP); click(1, 1, SlotActionType.PICKUP); click(planksSlot, 0, SlotActionType.PICKUP);
+            click(planksSlot, 0, SlotActionType.PICKUP); click(2, 1, SlotActionType.PICKUP); click(planksSlot, 0, SlotActionType.PICKUP);
+            click(planksSlot, 0, SlotActionType.PICKUP); click(3, 1, SlotActionType.PICKUP); click(planksSlot, 0, SlotActionType.PICKUP);
 
-            // Place planks into 3x3 slots: 1,2,3 (top row)
-            click(planksSlot, 0, SlotActionType.PICKUP);
-            click(1, 1, SlotActionType.PICKUP);
-            click(2, 1, SlotActionType.PICKUP);
-            click(3, 1, SlotActionType.PICKUP);
-            click(planksSlot, 0, SlotActionType.PICKUP);
-
-            // Place sticks into 3x3 slots: 5 (middle center), 8 (bottom center)
-            click(sticksSlot, 0, SlotActionType.PICKUP);
-            click(5, 1, SlotActionType.PICKUP);
-            click(8, 1, SlotActionType.PICKUP);
-            click(sticksSlot, 0, SlotActionType.PICKUP);
+            // Place sticks into 3x3 slots: 5 (middle center), 8 (bottom center) using fresh pickups
+            click(sticksSlot, 0, SlotActionType.PICKUP); click(5, 1, SlotActionType.PICKUP); click(sticksSlot, 0, SlotActionType.PICKUP);
+            click(sticksSlot, 0, SlotActionType.PICKUP); click(8, 1, SlotActionType.PICKUP); click(sticksSlot, 0, SlotActionType.PICKUP);
 
             // Shift-click result from slot 0
             click(0, 0, SlotActionType.QUICK_MOVE);
@@ -81,14 +78,17 @@ final class Crafting3x3 {
         } else {
             com.automc.modcore.ActionExecutor.sendProgress(actionId, "fail", "missing inputs: planks or sticks");
         }
+        // Keep the crafting screen open; do not toggle screens implicitly here
     }
 
     private static void craftPlanks3x3(String actionId, int crafts) {
         MinecraftClient mc = MinecraftClient.getInstance();
         if (mc == null || mc.player == null || mc.interactionManager == null) return;
+        if (com.automc.modcore.actions.gui.GuiCrafting.shouldAbort()) return;
         PlayerInventory inv = mc.player.getInventory();
         int made = 0;
         for (int i = 0; i < crafts; i++) {
+            if (com.automc.modcore.actions.gui.GuiCrafting.shouldAbort()) break;
             int srcLog = findFirstMatching(inv, iid -> iid.endsWith("_log") || iid.endsWith("_stem"));
             if (srcLog < 0) break;
             int srcSlot = toHandlerSlotIndex(srcLog);
@@ -105,14 +105,17 @@ final class Crafting3x3 {
         } else {
             com.automc.modcore.ActionExecutor.sendProgress(actionId, "fail", "missing input: log");
         }
+        // Keep the crafting screen open; do not toggle screens implicitly here
     }
 
     private static void craftSticks3x3(String actionId, int crafts) {
         MinecraftClient mc = MinecraftClient.getInstance();
         if (mc == null || mc.player == null || mc.interactionManager == null) return;
+        if (com.automc.modcore.actions.gui.GuiCrafting.shouldAbort()) return;
         PlayerInventory inv = mc.player.getInventory();
         int made = 0;
         for (int i = 0; i < crafts; i++) {
+            if (com.automc.modcore.actions.gui.GuiCrafting.shouldAbort()) break;
             int srcPlanks = findFirstMatching(inv, iid -> iid.endsWith("_planks"));
             if (srcPlanks < 0) break;
             int srcSlot = toHandlerSlotIndex(srcPlanks);
@@ -130,7 +133,6 @@ final class Crafting3x3 {
         } else {
             com.automc.modcore.ActionExecutor.sendProgress(actionId, "fail", "missing input: planks");
         }
+        // Keep the crafting screen open; do not toggle screens implicitly here
     }
 }
-
-

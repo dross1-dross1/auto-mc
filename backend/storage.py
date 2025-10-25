@@ -146,5 +146,3 @@ class StorageCatalog:
         except Exception:
             # ignore load errors
             self._by_key = {}
-
-

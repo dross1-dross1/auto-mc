@@ -9,53 +9,29 @@ Type chat commands in Minecraft Java and watch an in-game agent execute tasks en
 
 ## What you get
 - Type commands like `!get stone_pickaxe 1`; the agent handles navigation, mining, crafting, and confirmations.
+  - Messaging: `!say <text|!command|#cmd|.cmd>`, `!saymulti <name1,name2,...> <...>`, `!sayall <...>`.
 - Multiplayer-ready: multiple clients connect to one backend with optional auth.
 - Chat-bridge control for Baritone (`#...`) and Wurst (`.`); mod-native actions fill gaps.
-- Deterministic planner with resume-on-reconnect and bounded retries.
-- Shared storage catalog and simple claims for multi-agent fairness.
+- Deterministic planner; retries/resume not yet implemented.
+- Shared storage catalog across agents; claims are not implemented.
 
 ## Architecture (at a glance)
-- Fabric mod: captures `!` chat, streams telemetry, executes actions (chat bridge + mod-native), keeps a small storage cache, and persists minimal local state.
+- Fabric mod: captures `!` chat, streams telemetry, executes actions (chat bridge + mod-native), and does not persist client-side state.
 - Python backend: WebSocket gateway, state service, deterministic planner, and dispatcher with timeouts/retries.
-- Flow: `!command` → mod sends JSON → backend parses → planner emits steps → backend streams actions → mod executes → telemetry/progress update.
 
 ## Configuration
 Use a single JSON file `settings/config.json`. No environment variables or per-client mod files are used. This file is required and must include both server and client runtime keys (flattened). Recipe/planning data is curated in `settings/*.json`.
 
-Policy: All runtime tunables are sourced exclusively from `settings/config.json`. There are no hardcoded defaults or fallbacks in code. If a required key is missing, the backend will error at startup so you can fix the configuration explicitly.
+Policy: All runtime tunables are sourced exclusively from `settings/config.json`. Required keys must be present; the only optional defaults are `feedback_prefix_bracket_color` (GRAY) and `feedback_prefix_inner_color` (DARK_GREEN). If a required key is missing, the backend will error at startup so you can fix the configuration explicitly.
 
-See the configuration reference for all parameters and meanings: `docs/config.md`.
+See the configuration reference for all parameters and meanings in `docs/docs.md` (Configuration section).
 
-Example `settings/config.json` (full):
-```json
-{
-  "host": "127.0.0.1",
-  "port": 8765,
-  "log_level": "INFO",
-  "password": "changeme",
-  "max_chat_sends_per_sec": 5,
-  "default_action_spacing_ms": 200,
-  "acquire_poll_interval_ms": 500,
-  "telemetry_interval_ms": 500,
-  "chat_bridge_enabled": true,
-  "chat_bridge_rate_limit_per_sec": 2,
-  "command_prefix": "!",
-  "echo_public_default": false,
-  "ack_on_command": true,
-  "feedback_prefix": "[auto-mc] ",
-  "message_pump_max_per_tick": 64,
-  "message_pump_queue_cap": 2048,
-  "inventory_diff_debounce_ms": 150,
-  "chat_max_length": 256,
-  "crafting_click_delay_ms": 40
-}
-```
 
 ## Build the Fabric mod (JAR)
 Windows (PowerShell):
 ```powershell
 ./run_build.ps1
-# Output: .\fabric-mod\build\libs\autominecraft-0.1.0.jar
+# Output: .\fabric-mod\build\libs\autominecraft-0.1.0.jar (or .\fabric-mod\build\devlibs\autominecraft-0.1.0-dev.jar during dev)
 ```
 
 ## Tooling (Gradle wrapper)
@@ -84,7 +60,7 @@ After this, build with the wrapper:
 ### Setup (TL;DR)
 - Clone repo; open PowerShell in project root.
 - Ensure Python 3.10+ and JDK 21 available.
-- Create `settings/config.json` (see full example below, include client runtime keys).
+- Create `settings/config.json` (see Configuration in `docs/docs.md`; include client runtime keys).
 - Install Python deps: `pip install websockets` (system Python; no venvs).
 - Start backend: `./run_backend.ps1`.
 - Build mod: `./run_build.ps1`.
@@ -101,7 +77,7 @@ java -version
 ```
 
 1) Backend: setup and run
-- Create `settings/config.json` using the example in Configuration.
+- Create `settings/config.json` using the Configuration section in `docs/docs.md`.
 - Install Python dependencies to your main interpreter:
 ```powershell
 pip install websockets
@@ -117,7 +93,7 @@ pip install websockets
 - Or: `cd fabric-mod` then run the wrapper. If the wrapper JAR is missing, follow Tooling → Gradle wrapper recovery.
 
 3) Install and run in Minecraft
-- Copy the built JAR from `fabric-mod/build/libs/autominecraft-0.1.0.jar` into your Minecraft `mods` folder alongside Fabric Loader/API, Baritone, Wurst.
+- Copy the built JAR into your Minecraft `mods` folder alongside Fabric Loader/API, Baritone, Wurst. Preferred: `fabric-mod/build/libs/autominecraft-0.1.0.jar`. If not present, use the dev JAR: `fabric-mod/build/devlibs/autominecraft-0.1.0-dev.jar`.
 - Start Minecraft and connect to a world/server.
 
 Tips
@@ -130,7 +106,4 @@ Tips
 
 Keep changes small and verify in-game for interactions (crafting UI, placement, Baritone pathing). Build the mod and run the backend when needed.
 
-## Security and observability
-- Sanitize/escape outbound chat; never echo arbitrary backend input to public chat.
-- Shared `password` for clients; TLS removed per simplified model.
-- Structured logs and lightweight metrics (Requests/Errors/Duration). Rate limits and message size caps.
+ 

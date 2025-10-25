@@ -18,6 +18,7 @@ public final class GuiCrafting {
 
     private static boolean tickRegistered = false;
     private static final java.util.ArrayDeque<PendingCraft> pending = new java.util.ArrayDeque<>();
+    private static volatile long cancelUntilMs = 0L;
 
     private static final class PendingCraft {
         final String actionId;
@@ -39,6 +40,7 @@ public final class GuiCrafting {
     private static void onEndTick(MinecraftClient mc) {
         if (mc == null || mc.player == null) return;
         if (pending.isEmpty()) return;
+        if (System.currentTimeMillis() < cancelUntilMs) { pending.clear(); return; }
         PendingCraft head = pending.peek();
         if (head == null) return;
         if (mc.currentScreen instanceof CraftingScreen) {
@@ -106,6 +108,16 @@ public final class GuiCrafting {
         // Unknown screen; skip
         ActionExecutor.sendProgress(actionId, "skipped", "craft screen not supported");
     }
+
+    public static void cancelAll() {
+        pending.clear();
+    }
+
+    public static void signalCancel() {
+        cancelUntilMs = System.currentTimeMillis() + 1000L;
+    }
+
+    public static boolean shouldAbort() {
+        return System.currentTimeMillis() < cancelUntilMs;
+    }
 }
-
-

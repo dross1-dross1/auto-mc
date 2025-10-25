@@ -35,5 +35,3 @@ public final class UiSlots {
         im.clickSlot(syncId, slot, button, type, mc.player);
     }
 }
-
-

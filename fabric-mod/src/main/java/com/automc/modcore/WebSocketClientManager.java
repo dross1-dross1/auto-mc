@@ -56,6 +56,8 @@ public final class WebSocketClientManager {
     private volatile Integer inventoryDiffDebounceMsOverride = null;
     private volatile Integer chatMaxLengthOverride = null;
     private volatile String feedbackPrefixOverride = null;
+    private volatile String feedbackBracketColorOverride = null;
+    private volatile String feedbackInnerColorOverride = null;
 
     private WebSocketClientManager() {}
 
@@ -88,6 +90,8 @@ public final class WebSocketClientManager {
     public int getChatMaxLengthOrZero() { return (this.chatMaxLengthOverride != null) ? this.chatMaxLengthOverride.intValue() : 0; }
 
     public String getFeedbackPrefixOrEmpty() { return this.feedbackPrefixOverride != null ? this.feedbackPrefixOverride : ""; }
+    public String getFeedbackBracketColorOrNull() { return this.feedbackBracketColorOverride; }
+    public String getFeedbackInnerColorOrNull() { return this.feedbackInnerColorOverride; }
 
     public boolean areSettingsApplied() {
         return this.telemetryIntervalMsOverride != null
@@ -136,20 +140,10 @@ public final class WebSocketClientManager {
                         if (obj != null && obj.has("type")) {
                             String t = obj.get("type").getAsString();
                             if (Protocol.TYPE_SETTINGS_UPDATE.equals(t) || Protocol.TYPE_SETTINGS_BROADCAST.equals(t)) {
-                                boolean first = !areSettingsApplied();
                                 if (obj.has("settings") && obj.get("settings").isJsonObject()) {
                                     applySettings(obj.getAsJsonObject("settings"));
                                 }
-                                if (first) {
-                                    net.minecraft.client.MinecraftClient mc = net.minecraft.client.MinecraftClient.getInstance();
-                                    if (mc != null) {
-                                        mc.execute(() -> {
-                                            if (mc.inGameHud != null) {
-                                                mc.inGameHud.getChatHud().addMessage(net.minecraft.text.Text.of(getFeedbackPrefixOrEmpty() + "Connected to backend"));
-                                            }
-                                        });
-                                    }
-                                }
+                                // Confirmation is provided by backend via chat_send; avoid duplicate local HUD
                                 return; // settings applied; no need to enqueue this
                             }
                         }
@@ -299,6 +293,8 @@ public final class WebSocketClientManager {
             if (settings.has("chat_max_length")) this.chatMaxLengthOverride = settings.get("chat_max_length").getAsInt();
             if (settings.has("crafting_click_delay_ms")) { /* reserved */ }
             if (settings.has("feedback_prefix")) this.feedbackPrefixOverride = settings.get("feedback_prefix").getAsString();
+            if (settings.has("feedback_prefix_bracket_color")) this.feedbackBracketColorOverride = settings.get("feedback_prefix_bracket_color").getAsString();
+            if (settings.has("feedback_prefix_inner_color")) this.feedbackInnerColorOverride = settings.get("feedback_prefix_inner_color").getAsString();
             if (settings.has("baritone") && settings.get("baritone").isJsonObject()) {
                 com.google.gson.JsonObject baritone = settings.getAsJsonObject("baritone");
                 for (java.util.Map.Entry<String, com.google.gson.JsonElement> e : baritone.entrySet()) {

@@ -9,7 +9,6 @@
 package com.automc.modcore;
 
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.screen.ChatScreen;
 
 final class MinecraftChat {
     private MinecraftChat() {}
@@ -20,19 +19,10 @@ final class MinecraftChat {
         String safe = sanitize(text);
         mc.execute(() -> {
             try {
-                if (safe != null && (safe.startsWith(".") || safe.startsWith("#") || !safe.startsWith("!"))) {
-                    // Route dot-commands through ChatScreen to allow client-side mods (e.g., Wurst) to intercept
-                    ChatScreen screen = new ChatScreen("");
-                    mc.setScreen(screen);
-                    // Best-effort: use ChatScreen API to submit the message as if typed by the user
-                    screen.sendMessage(safe, true);
-                    mc.setScreen(null);
-                } else {
-                    mc.player.networkHandler.sendChatMessage(safe);
-                }
-            } catch (Throwable t) {
-                // Fallback to direct send if UI path fails
                 mc.player.networkHandler.sendChatMessage(safe);
+            } catch (Throwable t) {
+                // No UI toggles; ensure message is sent if possible
+                try { mc.player.networkHandler.sendChatMessage(safe); } catch (Throwable ignored) {}
             }
         });
     }

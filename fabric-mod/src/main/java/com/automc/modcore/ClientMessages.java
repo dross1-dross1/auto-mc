@@ -23,5 +23,3 @@ final class ClientMessages {
         return obj;
     }
 }
-
-

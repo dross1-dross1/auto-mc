@@ -31,6 +31,8 @@ class Settings:
     echo_public_default: bool
     ack_on_command: bool
     feedback_prefix: str
+    feedback_prefix_bracket_color: str
+    feedback_prefix_inner_color: str
     message_pump_max_per_tick: int
     message_pump_queue_cap: int
     inventory_diff_debounce_ms: int
@@ -98,6 +100,8 @@ def load_settings() -> Settings:
         echo_public_default=_as_bool(gv("echo_public_default", None), False),
         ack_on_command=_as_bool(gv("ack_on_command", None), False),
         feedback_prefix=str(gv("feedback_prefix", None)),
+        feedback_prefix_bracket_color=str(gv("feedback_prefix_bracket_color", "GRAY")),
+        feedback_prefix_inner_color=str(gv("feedback_prefix_inner_color", "DARK_GREEN")),
         message_pump_max_per_tick=int(gv("message_pump_max_per_tick", None)),
         message_pump_queue_cap=int(gv("message_pump_queue_cap", None)),
         inventory_diff_debounce_ms=int(gv("inventory_diff_debounce_ms", None)),

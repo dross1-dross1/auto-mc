@@ -42,5 +42,3 @@ final class ChatEventForwarder {
         return lower.contains("baritone") || lower.contains("wurst");
     }
 }
-
-

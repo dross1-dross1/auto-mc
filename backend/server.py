@@ -133,6 +133,8 @@ class BackendServer:
                                 "chat_max_length": self.settings.chat_max_length,
                                 "crafting_click_delay_ms": self.settings.crafting_click_delay_ms,
                                 "feedback_prefix": self.settings.feedback_prefix,
+                            "feedback_prefix_bracket_color": self.settings.feedback_prefix_bracket_color,
+                            "feedback_prefix_inner_color": self.settings.feedback_prefix_inner_color,
                             },
                         })
                     except Exception:
@@ -211,8 +213,13 @@ class BackendServer:
                     logger.info("chat_event: %s", text)
 
         except websockets.ConnectionClosedError:
-            logger.info("client disconnected: %s", client)
+            # Connection dropped unexpectedly; log agent identity if known
+            pass
         finally:
+            try:
+                logger.info("agent disconnected: %s", self._player_label(session.player_uuid))
+            except Exception:
+                logger.info("client disconnected: %s", client)
             try:
                 # Cancel any outstanding dispatcher tasks for this session
                 for t in list(session.dispatch_tasks):
@@ -232,9 +239,14 @@ class BackendServer:
         logger.info("command from %s: %s", self._player_label(player_id), text)
 
         intent = parse_command_text(text)
-        if intent and intent.get("type") == "echo":
+        if intent and intent.get("type") == "say":
+            payload = str(intent.get("text", ""))
+            # Recursive evaluation: if payload is a command, evaluate it here
+            if payload.startswith("!"):
+                await self._on_command(session, {"text": payload, "request_id": request_id})
+                return
             prefix = self.settings.feedback_prefix or ""
-            text_out = f"{prefix}{str(intent.get('text', ''))}"
+            text_out = f"{prefix}{payload}"
             await self._send_json(session.websocket, {
                 "type": "chat_send",
                 "request_id": request_id,
@@ -245,26 +257,49 @@ class BackendServer:
 
         if intent and intent.get("type") == "help":
             prefix = self.settings.feedback_prefix or ""
-            help_text = (
-                "Available commands:\n"
-                "!help - Show this help\n"
-                "!who - List online agents (uuid and username)\n"
-                "!stop - Cancel all active tasks for all agents and stop Baritone\n"
-                "!connect <host:port> <password> - Connect client to backend\n"
-                "!disconnect - Disconnect client from backend\n"
-                "!echo <text> - Display text locally (or publicly if configured)\n"
-                "!get <item> <count> - Plan and execute acquisition/crafting (2x2 crafts acknowledged, 3x3/smelt pending)\n"
-                "!echomulti <name1,name2,...> <message|#cmd|.cmd> - Send chat/command to targets\n"
-                "!echoall <message|#cmd|.cmd> - Send chat/command to all online agents\n"
-                "!settings <json> - Apply runtime settings to clients (rate limits, intervals)\n"
-            )
-            await self._send_json(session.websocket, {
-                "type": "chat_send",
-                "request_id": request_id,
-                "player_uuid": player_id,
-                "text": f"{prefix}{help_text}",
-            })
+            help_lines = [
+                "Available commands:",
+                "!help - Show this help",
+                "!who - List online agents (uuid and username)",
+                "!stop - Cancel all active tasks for all agents",
+                "!connect <ip:port> <pw> - Connect client to backend",
+                "!disconnect - Disconnect client from backend",
+                "!say <text> - Send as user or evaluate commands",
+                "!saymulti <p1,p2,...> <text> - Send as target users",
+                "!sayall <text> - Send as all users",
+                "!get <item> <count> - Plan and execute item acquisition",
+                "!settings <json> - Apply runtime settings to clients",
+            ]
+            for line in help_lines:
+                await self._send_json(session.websocket, {
+                    "type": "chat_send",
+                    "request_id": request_id,
+                    "player_uuid": player_id,
+                    "text": f"{prefix}{line}",
+                })
             return
+
+        if intent and intent.get("type") == "usage":
+            cmd = str(intent.get("cmd", ""))
+            usage = None
+            if cmd == "say":
+                usage = "Usage: !say <text|!command|#cmd|.cmd>"
+            elif cmd == "saymulti":
+                usage = "Usage: !saymulti <p1,p2,...> <text|!command|#cmd|.cmd>"
+            elif cmd == "sayall":
+                usage = "Usage: !sayall <text|!command|#cmd|.cmd>"
+            elif cmd == "get":
+                usage = "Usage: !get <item> <count>"
+            elif cmd == "settings":
+                usage = "Usage: !settings <json>"
+            if usage:
+                await self._send_json(session.websocket, {
+                    "type": "chat_send",
+                    "request_id": request_id,
+                    "player_uuid": player_id,
+                    "text": f"{self.settings.feedback_prefix}{usage}",
+                })
+                return
 
         if intent and intent.get("type") == "craft_item":
             item_id = str(intent["item"])  # type: ignore[index]
@@ -323,10 +358,19 @@ class BackendServer:
                 pass
             return
 
-        if intent and intent.get("type") == "multicast":
+        if intent and intent.get("type") == "saymulti":
             targets = list(intent.get("targets", []))  # type: ignore[assignment]
             payload = str(intent.get("text", ""))
-            # Build action_request chat_bridge and fan out to specified targets
+            # If payload is a command, run it on backend for each target context
+            if payload.startswith("!"):
+                for tgt in targets:
+                    # Avoid double-running for the sender if they targeted themselves
+                    if tgt == player_id:
+                        continue
+                    # Reconstruct a full command and run it as if from that target
+                    await self._eval_command_as_target(tgt, payload)
+                return
+            # Otherwise, forward as chat text
             out = {
                 "type": "action_request",
                 "action_id": str(uuid.uuid4()),
@@ -337,8 +381,15 @@ class BackendServer:
             await self._multicast(targets, out)
             return
 
-        if intent and intent.get("type") == "broadcast":
+        if intent and intent.get("type") == "sayall":
             payload = str(intent.get("text", ""))
+            # If payload is a command, run it for each connected agent
+            if payload.startswith("!"):
+                for s in list(self.sessions.values()):
+                    pid = s.player_uuid or "unknown"
+                    await self._eval_command_as_target(pid, payload)
+                return
+            # Otherwise, broadcast as plain chat
             out = {
                 "type": "action_request",
                 "action_id": str(uuid.uuid4()),
@@ -384,6 +435,14 @@ class BackendServer:
             return
 
         # Admin: !settings {json}
+        if text == "!settings":
+            await self._send_json(session.websocket, {
+                "type": "chat_send",
+                "request_id": request_id,
+                "player_uuid": player_id,
+                "text": f"{self.settings.feedback_prefix}Usage: !settings <json>",
+            })
+            return
         if text.startswith("!settings "):
             try:
                 payload = json.loads(text[len("!settings "):].strip())
@@ -405,7 +464,11 @@ class BackendServer:
                     merged.update(payload)
                 await self._send_json(session.websocket, {
                     "type": "settings_update",
-                    "settings": merged,
+                    "settings": {
+                        **merged,
+                        "feedback_prefix_bracket_color": self.settings.feedback_prefix_bracket_color,
+                        "feedback_prefix_inner_color": self.settings.feedback_prefix_inner_color,
+                    },
                 })
             except Exception:
                 await self._send_json(session.websocket, {
@@ -421,7 +484,7 @@ class BackendServer:
             "type": "chat_send",
             "request_id": request_id,
             "player_uuid": player_id,
-            "text": f"Unrecognized command: {text}",
+            "text": f"{self.settings.feedback_prefix}Unrecognized command: {text}",
         })
 
     async def _on_telemetry(self, session: Session, msg: dict) -> None:
@@ -500,6 +563,43 @@ class BackendServer:
     async def _send_json(self, websocket: WebSocketServerProtocol, obj: dict) -> None:
         await websocket.send(json.dumps(obj, separators=(",", ":")))
 
+    async def _eval_command_as_target(self, target_player_uuid: str, command_text: str) -> None:
+        """Evaluate a '!' command as if issued by the target agent.
+
+        Security: intra-system only; assumes connected sessions are trusted agents.
+        """
+        # Build a fake message as if from the target and route through command handler pieces
+        # Find the session websocket for the target so responses route to that client
+        target_ws: Optional[WebSocketServerProtocol] = None
+        for s in self.sessions.values():
+            if (s.player_uuid or "unknown") == target_player_uuid:
+                target_ws = s.websocket
+                break
+        if target_ws is None:
+            return
+        # Parse and handle like _on_command would, but scoped to the target
+        intent = parse_command_text(command_text)
+        if not intent:
+            # Non-command: fallback to chat fanout for the single target
+            out = {
+                "type": "action_request",
+                "action_id": str(uuid.uuid4()),
+                "mode": "chat_bridge",
+                "op": "chat",
+                "chat_text": command_text,
+            }
+            await self._multicast([target_player_uuid], out)
+            return
+        # Reuse the existing flow by invoking the relevant branches inline
+        req_id = str(uuid.uuid4())
+        msg = {"text": command_text, "request_id": req_id}
+        # Minimal inline re-dispatch: construct a lightweight session-like object
+        class _Sess:
+            def __init__(self, websocket, pid):
+                self.websocket = websocket
+                self.player_uuid = pid
+        await self._on_command(_Sess(target_ws, target_player_uuid), msg)
+
     async def _cancel_all_tasks_and_broadcast_stop(self) -> None:
         # Cancel all tracked dispatcher tasks for every session
         for s in list(self.sessions.values()):
@@ -509,7 +609,15 @@ class BackendServer:
                 s.dispatch_tasks.clear()
             except Exception:
                 continue
-        # Broadcast Baritone stop to all agents
+        # First send a mod-native cancel to close screens and clear pending crafts
+        cancel_msg = {
+            "type": "action_request",
+            "action_id": str(uuid.uuid4()),
+            "mode": "mod_native",
+            "op": "cancel",
+        }
+        await self._multicast([], cancel_msg)
+        # Then broadcast Baritone stop to all agents
         stop_msg = {
             "type": "action_request",
             "action_id": str(uuid.uuid4()),

@@ -68,8 +68,7 @@ public final class ChatInterceptor {
                 obj.addProperty("player_uuid", WebSocketClientManager.getInstance().getPlayerId());
                 WebSocketClientManager.getInstance().sendJson(obj);
                 if (WebSocketClientManager.getInstance().getAckOnCommandEnabled()) {
-                    String pfx = WebSocketClientManager.getInstance().getFeedbackPrefixOrEmpty();
-                    hud(pfx + textOut);
+                    hud(textOut);
                 }
                 return false;
             }
@@ -77,13 +76,57 @@ public final class ChatInterceptor {
         });
     }
 
-    private static void hud(String text) {
+    public static void hud(String text) {
         net.minecraft.client.MinecraftClient mc = net.minecraft.client.MinecraftClient.getInstance();
         if (mc == null) return;
         mc.execute(() -> {
             if (mc.inGameHud != null) {
-                mc.inGameHud.getChatHud().addMessage(net.minecraft.text.Text.of(text));
+                String pfx = WebSocketClientManager.getInstance().getFeedbackPrefixOrEmpty();
+                String src = text == null ? "" : text;
+                boolean hasPrefix = pfx != null && !pfx.isEmpty() && src.startsWith(pfx);
+                boolean needsPrefix = pfx != null && !pfx.isEmpty() && !hasPrefix;
+
+                net.minecraft.text.MutableText msg = net.minecraft.text.Text.empty();
+                if (hasPrefix) {
+                    String rest = src.substring(pfx.length());
+                    appendColoredPrefix(msg, pfx);
+                    msg.append(net.minecraft.text.Text.literal(rest));
+                } else if (needsPrefix) {
+                    appendColoredPrefix(msg, pfx);
+                    msg.append(net.minecraft.text.Text.literal(src));
+                } else {
+                    msg.append(net.minecraft.text.Text.literal(src));
+                }
+                mc.inGameHud.getChatHud().addMessage(msg);
             }
         });
+    }
+
+    private static void appendColoredPrefix(net.minecraft.text.MutableText dst, String pfx) {
+        String base = pfx == null ? "" : pfx;
+        boolean trailingSpace = base.endsWith(" ");
+        if (trailingSpace) base = base.substring(0, base.length() - 1);
+        if (base.startsWith("[") && base.endsWith("]") && base.length() >= 2) {
+            String inner = base.substring(1, base.length() - 1);
+            net.minecraft.util.Formatting bracketFmt = resolveFormatting(WebSocketClientManager.getInstance().getFeedbackBracketColorOrNull(), net.minecraft.util.Formatting.GRAY);
+            net.minecraft.util.Formatting innerFmt = resolveFormatting(WebSocketClientManager.getInstance().getFeedbackInnerColorOrNull(), net.minecraft.util.Formatting.DARK_GREEN);
+            dst.append(net.minecraft.text.Text.literal("[").formatted(bracketFmt));
+            if (!inner.isEmpty()) dst.append(net.minecraft.text.Text.literal(inner).formatted(innerFmt));
+            dst.append(net.minecraft.text.Text.literal("]").formatted(bracketFmt));
+            if (trailingSpace) dst.append(net.minecraft.text.Text.literal(" "));
+        } else {
+            net.minecraft.util.Formatting bracketFmt = resolveFormatting(WebSocketClientManager.getInstance().getFeedbackBracketColorOrNull(), net.minecraft.util.Formatting.GRAY);
+            dst.append(net.minecraft.text.Text.literal(base).formatted(bracketFmt));
+            if (trailingSpace) dst.append(net.minecraft.text.Text.literal(" "));
+        }
+    }
+
+    private static net.minecraft.util.Formatting resolveFormatting(String nameOrNull, net.minecraft.util.Formatting fallback) {
+        if (nameOrNull == null || nameOrNull.isEmpty()) return fallback;
+        try {
+            return net.minecraft.util.Formatting.valueOf(nameOrNull.trim().toUpperCase());
+        } catch (IllegalArgumentException ex) {
+            return fallback;
+        }
     }
 }

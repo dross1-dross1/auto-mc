@@ -108,4 +108,3 @@ def load_mineable_items() -> List[str]:
     if not isinstance(data, list) or not all(isinstance(x, str) for x in data):
         raise ValueError("mineable_items.json must be an array of strings")
     return list(data)
-

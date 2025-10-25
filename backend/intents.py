@@ -6,7 +6,9 @@ Purpose: Translate a small set of '!'-prefixed commands into explicit intent
 dicts for the planner/dispatcher.
 
 Supported patterns:
-- !echo <text>
+- !say <text|!command|#cmd|.cmd>
+- !saymulti <name1,name2,...> <text|!command|#cmd|.cmd>
+- !sayall <text|!command|#cmd|.cmd>
 - !get <item words> <count>
 
 """
@@ -29,12 +31,12 @@ def parse_command_text(text: str) -> Optional[Dict[str, object]]:
     if text == "!stop":
         return {"type": "stop"}
 
-    if text.startswith("!echo "):
-        # Normalize nested echo forms by stripping repeated '!echo ' prefixes
-        payload = text[len("!echo ") :].strip()
-        while payload.startswith("!echo "):
-            payload = payload[len("!echo ") :].strip()
-        return {"type": "echo", "text": payload}
+    # !say <payload>
+    if text == "!say" or text.startswith("!say "):
+        if text == "!say":
+            return {"type": "usage", "cmd": "say"}
+        payload = text[len("!say ") :].strip()
+        return {"type": "say", "text": payload}
 
     m = re.match(r"^!get\s+(.+)\s+(\d+)$", text)
     if m:
@@ -49,25 +51,26 @@ def parse_command_text(text: str) -> Optional[Dict[str, object]]:
         base = aliases.get(item_words, item_words)
         item_id = base if ":" in base else f"minecraft:{base}"
         return {"type": "craft_item", "item": item_id, "count": count}
+    if text == "!get" or text.startswith("!get "):
+        return {"type": "usage", "cmd": "get"}
 
-    # !echomulti name1,name2 <message|#cmd|.cmd>
-    m2 = re.match(r"^!echomulti\s+([^\s]+)\s+(.+)$", text)
+    # !saymulti name1,name2 <message|#cmd|.cmd|!command>
+    m2 = re.match(r"^!saymulti\s+([^\s]+)\s+(.+)$", text)
     if m2:
         targets_csv = m2.group(1).strip()
         payload = m2.group(2).strip()
-        # Interpret '!echo X' as plain text X
-        if payload.startswith("!echo "):
-            payload = payload[len("!echo ") :].strip()
         # Pass through commands like '#...' or '. ...'
         targets = [t.strip() for t in targets_csv.split(",") if t.strip()]
-        return {"type": "multicast", "targets": targets, "text": payload}
+        return {"type": "saymulti", "targets": targets, "text": payload}
+    if text == "!saymulti" or text.startswith("!saymulti ") and not re.match(r"^!saymulti\s+[^\s]+\s+.+$", text):
+        return {"type": "usage", "cmd": "saymulti"}
 
-    # !echoall <message|#cmd|.cmd>
-    m3 = re.match(r"^!echoall\s+(.+)$", text)
+    # !sayall <message|#cmd|.cmd|!command>
+    m3 = re.match(r"^!sayall\s+(.+)$", text)
     if m3:
         payload = m3.group(1).strip()
-        if payload.startswith("!echo "):
-            payload = payload[len("!echo ") :].strip()
-        return {"type": "broadcast", "text": payload}
+        return {"type": "sayall", "text": payload}
+    if text == "!sayall":
+        return {"type": "usage", "cmd": "sayall"}
 
     return None

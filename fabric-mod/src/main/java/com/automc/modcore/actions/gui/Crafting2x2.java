@@ -67,10 +67,12 @@ public final class Crafting2x2 {
 	private static void craftPlanks(String actionId, int crafts) {
 		MinecraftClient mc = MinecraftClient.getInstance();
 		if (mc == null || mc.player == null || mc.interactionManager == null) return;
+		if (com.automc.modcore.actions.gui.GuiCrafting.shouldAbort()) return;
 		ensureInventoryScreenOpen(mc);
 		PlayerInventory inv = mc.player.getInventory();
 		int made = 0;
 		for (int i = 0; i < crafts; i++) {
+			if (com.automc.modcore.actions.gui.GuiCrafting.shouldAbort()) break;
 			int src = findFirstMatching(inv, iid -> iid.endsWith("_log") || iid.endsWith("_stem"));
 			if (src < 0) break;
 			int srcSlot = toHandlerSlotIndex(src);
@@ -89,15 +91,18 @@ public final class Crafting2x2 {
 		} else {
 			com.automc.modcore.ActionExecutor.sendProgress(actionId, "fail", "missing input: log");
 		}
+        // Keep the inventory screen open; do not toggle screens implicitly here
 	}
 
 	private static void craftSticks(String actionId, int crafts) {
 		MinecraftClient mc = MinecraftClient.getInstance();
 		if (mc == null || mc.player == null || mc.interactionManager == null) return;
+		if (com.automc.modcore.actions.gui.GuiCrafting.shouldAbort()) return;
 		ensureInventoryScreenOpen(mc);
 		PlayerInventory inv = mc.player.getInventory();
 		int made = 0;
 		for (int i = 0; i < crafts; i++) {
+			if (com.automc.modcore.actions.gui.GuiCrafting.shouldAbort()) break;
 			int src = findFirstMatching(inv, iid -> iid.endsWith("_planks"));
 			if (src < 0) break;
 			int srcSlot = toHandlerSlotIndex(src);
@@ -117,15 +122,18 @@ public final class Crafting2x2 {
 		} else {
 			com.automc.modcore.ActionExecutor.sendProgress(actionId, "fail", "missing input: planks");
 		}
+        // Keep the inventory screen open; do not toggle screens implicitly here
 	}
 
 	private static void craftTable(String actionId, int crafts) {
 		MinecraftClient mc = MinecraftClient.getInstance();
 		if (mc == null || mc.player == null || mc.interactionManager == null) return;
+		if (com.automc.modcore.actions.gui.GuiCrafting.shouldAbort()) return;
 		ensureInventoryScreenOpen(mc);
 		PlayerInventory inv = mc.player.getInventory();
 		int made = 0;
 		for (int i = 0; i < crafts; i++) {
+			if (com.automc.modcore.actions.gui.GuiCrafting.shouldAbort()) break;
 			int src = findFirstMatching(inv, iid -> iid.endsWith("_planks"));
 			if (src < 0) break;
 			int srcSlot = toHandlerSlotIndex(src);
@@ -147,10 +155,12 @@ public final class Crafting2x2 {
 		} else {
 			com.automc.modcore.ActionExecutor.sendProgress(actionId, "fail", "missing input: planks");
 		}
+        // Keep the inventory screen open; do not toggle screens implicitly here
 	}
 
 	private static void ensureInventoryScreenOpen(MinecraftClient mc) {
 		try {
+			if (com.automc.modcore.actions.gui.GuiCrafting.shouldAbort()) return;
 			if (!(mc.currentScreen instanceof net.minecraft.client.gui.screen.ingame.InventoryScreen)) {
 				mc.setScreen(new InventoryScreen(mc.player));
 			}
